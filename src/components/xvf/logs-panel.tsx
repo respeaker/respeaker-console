@@ -30,7 +30,7 @@ export function LogsPanel({ xvf }: Props) {
 
   const filtered = useMemo(
     () => (level === "all" ? xvf.logs : xvf.logs.filter((l) => l.level === level)),
-    [xvf.logs, level],
+    [xvf.logs, level]
   );
 
   const exportLogs = () => {
@@ -71,12 +71,7 @@ export function LogsPanel({ xvf }: Props) {
               <SelectItem value="error">Error</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportLogs}
-            disabled={xvf.logs.length === 0}
-          >
+          <Button size="sm" variant="outline" onClick={exportLogs} disabled={xvf.logs.length === 0}>
             <Download className="mr-2 h-4 w-4" aria-hidden />
             {t("xvf.logs.export")}
           </Button>

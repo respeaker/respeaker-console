@@ -21,7 +21,7 @@ import { useXvf } from "@/hooks/use-xvf";
 // The configuration table is heavy (renders every firmware parameter). Lazy
 // load it so the initial dashboard paint stays snappy.
 const ConfigPanel = lazy(() =>
-  import("@/components/xvf/config-panel").then((m) => ({ default: m.ConfigPanel })),
+  import("@/components/xvf/config-panel").then((m) => ({ default: m.ConfigPanel }))
 );
 
 const SHORTCUT_KEY = "global-shortcut-show-main";
@@ -40,7 +40,7 @@ export default function HomePage() {
             await toggleWindow("main");
           });
         }
-      },
+      }
     );
 
     const initTrayMenu = async () => {
@@ -135,9 +135,7 @@ export default function HomePage() {
         </TabsContent>
         <TabsContent value="config" className="mt-0">
           <Suspense
-            fallback={
-              <div className="text-muted-foreground p-6 text-sm">{t("xvf.loading")}</div>
-            }
+            fallback={<div className="text-muted-foreground p-6 text-sm">{t("xvf.loading")}</div>}
           >
             <ConfigPanel xvf={xvf} />
           </Suspense>

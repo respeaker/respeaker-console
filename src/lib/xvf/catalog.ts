@@ -5,21 +5,9 @@
 // round-trip to the backend. In a connected Tauri build we also reconcile
 // with `xvf_list_commands` on startup to catch drift during development.
 
-import type {
-  ParameterAccess,
-  ParameterInfo,
-  ParameterKind,
-} from "./types";
+import type { ParameterAccess, ParameterInfo, ParameterKind } from "./types";
 
-type Def = [
-  string,
-  number,
-  number,
-  number,
-  ParameterAccess,
-  ParameterKind,
-  string,
-];
+type Def = [string, number, number, number, ParameterAccess, ParameterKind, string];
 
 const DEFS: Def[] = [
   // APPLICATION_SERVICER_RESID (48)
@@ -39,16 +27,56 @@ const DEFS: Def[] = [
   ["SHF_BYPASS", 33, 70, 1, "rw", "uint8", "AEC bypass"],
   ["AEC_NUM_MICS", 33, 71, 1, "ro", "int32", "Number of microphone inputs into the AEC"],
   ["AEC_NUM_FARENDS", 33, 72, 1, "ro", "int32", "Number of farend inputs into the AEC"],
-  ["AEC_MIC_ARRAY_TYPE", 33, 73, 1, "ro", "int32", "Microphone array type (1=linear, 2=squarecular)"],
+  [
+    "AEC_MIC_ARRAY_TYPE",
+    33,
+    73,
+    1,
+    "ro",
+    "int32",
+    "Microphone array type (1=linear, 2=squarecular)",
+  ],
   ["AEC_MIC_ARRAY_GEO", 33, 74, 12, "ro", "float", "Microphone array geometry (XYZ per mic)"],
-  ["AEC_AZIMUTH_VALUES", 33, 75, 4, "ro", "radians", "Azimuth per beam: 0=beam1, 1=beam2, 2=free, 3=auto"],
-  ["AEC_CURRENT_IDLE_TIME", 33, 77, 1, "ro", "uint32", "AEC processing current idle time (10ns ticks)"],
+  [
+    "AEC_AZIMUTH_VALUES",
+    33,
+    75,
+    4,
+    "ro",
+    "radians",
+    "Azimuth per beam: 0=beam1, 1=beam2, 2=free, 3=auto",
+  ],
+  [
+    "AEC_CURRENT_IDLE_TIME",
+    33,
+    77,
+    1,
+    "ro",
+    "uint32",
+    "AEC processing current idle time (10ns ticks)",
+  ],
   ["AEC_MIN_IDLE_TIME", 33, 78, 1, "ro", "uint32", "AEC processing minimum idle time (10ns ticks)"],
   ["AEC_RESET_MIN_IDLE_TIME", 33, 79, 1, "wo", "uint32", "Reset the AEC minimum idle time"],
   ["AEC_SPENERGY_VALUES", 33, 80, 4, "ro", "float", "Speech energy level per beam"],
-  ["AEC_FIXEDBEAMSAZIMUTH_VALUES", 33, 81, 2, "rw", "radians", "Azimuth values for fixed-mode beams"],
+  [
+    "AEC_FIXEDBEAMSAZIMUTH_VALUES",
+    33,
+    81,
+    2,
+    "rw",
+    "radians",
+    "Azimuth values for fixed-mode beams",
+  ],
   ["AEC_FIXEDBEAMSELEVATION_VALUES", 33, 82, 2, "rw", "radians", "Elevation for fixed-mode beams"],
-  ["AEC_FIXEDBEAMSGATING", 33, 83, 1, "rw", "uint8", "Enable/disable gating for beams in fixed mode"],
+  [
+    "AEC_FIXEDBEAMSGATING",
+    33,
+    83,
+    1,
+    "rw",
+    "uint8",
+    "Enable/disable gating for beams in fixed mode",
+  ],
   ["AEC_AECPATHCHANGE", 33, 0, 1, "ro", "int32", "AEC Path Change Detection (0/1)"],
   ["AEC_HPFONOFF", 33, 1, 1, "rw", "int32", "High-pass filter on microphone signals (0..4)"],
   ["AEC_AECSILENCELEVEL", 33, 2, 2, "rw", "float", "Power threshold for signal detection"],
@@ -62,7 +90,15 @@ const DEFS: Def[] = [
   ["AEC_ASROUTONOFF", 33, 35, 1, "rw", "int32", "Automatic speech recognition output (0/1)"],
   ["AEC_ASROUTGAIN", 33, 36, 1, "rw", "float", "Fixed gain applied to ASR output"],
   ["AEC_FIXEDBEAMSONOFF", 33, 37, 1, "rw", "int32", "Enable fixed focused beam mode (0/1)"],
-  ["AEC_FIXEDBEAMNOISETHR", 33, 38, 2, "rw", "float", "Noise canceller threshold in fixed beam mode"],
+  [
+    "AEC_FIXEDBEAMNOISETHR",
+    33,
+    38,
+    2,
+    "rw",
+    "float",
+    "Noise canceller threshold in fixed beam mode",
+  ],
 
   // AUDIO_MGR_RESID (35)
   ["AUDIO_MGR_MIC_GAIN", 35, 0, 1, "rw", "float", "Pre-SHF microphone gain"],
@@ -76,13 +112,29 @@ const DEFS: Def[] = [
   ["I2S_MIN_IDLE_TIME", 35, 8, 1, "ro", "int32", "I2S min idle time"],
   ["I2S_RESET_MIN_IDLE_TIME", 35, 9, 1, "wo", "int32", "I2S reset idle time"],
   ["I2S_INPUT_PACKED", 35, 10, 1, "rw", "uint8", "Expect packed input on I2S/USB channels"],
-  ["AUDIO_MGR_SELECTED_AZIMUTHS", 35, 11, 2, "ro", "radians", "Processed DoA and auto-select beam DoA"],
+  [
+    "AUDIO_MGR_SELECTED_AZIMUTHS",
+    35,
+    11,
+    2,
+    "ro",
+    "radians",
+    "Processed DoA and auto-select beam DoA",
+  ],
   ["AUDIO_MGR_SELECTED_CHANNELS", 35, 12, 2, "rw", "uint8", "Selected channels for output mux"],
   ["AUDIO_MGR_OP_PACKED", 35, 13, 2, "rw", "uint8", "Packing status for L and R channels"],
   ["AUDIO_MGR_OP_UPSAMPLE", 35, 14, 2, "rw", "uint8", "Upsample status for L and R channels"],
   ["AUDIO_MGR_OP_L", 35, 15, 2, "rw", "uint8", "Category and source for L channel"],
   ["AUDIO_MGR_OP_R", 35, 19, 2, "rw", "uint8", "Category and source for R channel"],
-  ["I2S_INACTIVE", 35, 24, 1, "ro", "uint8", "Whether the main loop is exchanging samples with I2S"],
+  [
+    "I2S_INACTIVE",
+    35,
+    24,
+    1,
+    "ro",
+    "uint8",
+    "Whether the main loop is exchanging samples with I2S",
+  ],
   ["AUDIO_MGR_FAR_END_DSP_ENABLE", 35, 25, 1, "rw", "uint8", "Enable far-end DSP (0/1)"],
   ["AUDIO_MGR_SYS_DELAY", 35, 26, 1, "rw", "int32", "Delay applied to the reference signal"],
   ["I2S_DAC_DSP_ENABLE", 35, 27, 1, "rw", "uint8", "DAC performs DSP on far-end reference"],
@@ -90,7 +142,15 @@ const DEFS: Def[] = [
   // GPO_SERVICER_RESID / LED (20)
   ["GPO_READ_VALUES", 20, 0, 5, "ro", "uint8", "Current logic level of all GPO pins"],
   ["GPO_WRITE_VALUE", 20, 1, 2, "wo", "uint8", "Set logic level of a GPO pin"],
-  ["LED_EFFECT", 20, 12, 1, "rw", "uint8", "LED effect: 0=off, 1=breath, 2=rainbow, 3=single, 4=doa, 5=ring"],
+  [
+    "LED_EFFECT",
+    20,
+    12,
+    1,
+    "rw",
+    "uint8",
+    "LED effect: 0=off, 1=breath, 2=rainbow, 3=single, 4=doa, 5=ring",
+  ],
   ["LED_BRIGHTNESS", 20, 13, 1, "rw", "uint8", "LED brightness for breath/rainbow"],
   ["LED_GAMMIFY", 20, 14, 1, "rw", "uint8", "Gamma correction (0=off, 1=on)"],
   ["LED_SPEED", 20, 15, 1, "rw", "uint8", "Effect speed for breath/rainbow"],
@@ -138,7 +198,7 @@ export const PARAMETER_CATALOG: ParameterInfo[] = DEFS.map(
     access,
     kind,
     description,
-  }),
+  })
 );
 
 const INDEX = new Map(PARAMETER_CATALOG.map((p) => [p.name, p] as const));

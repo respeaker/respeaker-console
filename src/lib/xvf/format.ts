@@ -20,7 +20,9 @@ export function formatValue(param: ParameterInfo, values: XvfValue[] | null): st
   ) {
     return values
       .map((v) =>
-        typeof v === "number" ? `#${Math.max(0, v).toString(16).padStart(6, "0").toUpperCase()}` : String(v),
+        typeof v === "number"
+          ? `#${Math.max(0, v).toString(16).padStart(6, "0").toUpperCase()}`
+          : String(v)
       )
       .join(", ");
   }

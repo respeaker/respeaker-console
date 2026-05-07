@@ -84,8 +84,7 @@ function ensureValues(params: ParameterInfo[]) {
 
 function defaultValue(p: ParameterInfo): XvfValue[] {
   if (p.kind === "char") return [""];
-  const n: number =
-    p.kind === "float" || p.kind === "radians" ? 0.0 : 0;
+  const n: number = p.kind === "float" || p.kind === "radians" ? 0.0 : 0;
   return Array.from({ length: p.length }, () => n);
 }
 
@@ -126,7 +125,7 @@ export async function mockConnect(args: ConnectArgs): Promise<DeviceInfo> {
       d.vid === vid &&
       (args.pid == null || d.pid === args.pid) &&
       (args.bus == null || d.bus === args.bus) &&
-      (args.address == null || d.address === args.address),
+      (args.address == null || d.address === args.address)
   );
   if (!dev) throw new Error(`No device found for vid=0x${vid.toString(16)}`);
   STATE.current = dev;
@@ -159,7 +158,7 @@ export async function mockRead(name: string): Promise<XvfValue[]> {
   if (name === "DOA_VALUE") {
     STATE.doaTick += 1;
     const angle = Math.floor(
-      180 + 120 * Math.sin(STATE.doaTick / 12) + 40 * Math.cos(STATE.doaTick / 3),
+      180 + 120 * Math.sin(STATE.doaTick / 12) + 40 * Math.cos(STATE.doaTick / 3)
     );
     const vad = Math.abs(Math.sin(STATE.doaTick / 5)) > 0.4 ? 1 : 0;
     return [((angle % 360) + 360) % 360, vad];

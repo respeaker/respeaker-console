@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatNumber } from "@/lib/xvf/format";
+import { DoaCompass } from "@/components/xvf/doa-compass";
 
 type Props = { xvf: UseXvfResult };
 
@@ -67,10 +68,7 @@ export function MonitorPanel({ xvf }: Props) {
         rt60: Number(rt60Values[0] ?? 0),
         energy: energyValues.map((v) => Number(v)),
       };
-      samplesRef.current = [
-        ...samplesRef.current.slice(-(MAX_SAMPLES - 1)),
-        sample,
-      ];
+      samplesRef.current = [...samplesRef.current.slice(-(MAX_SAMPLES - 1)), sample];
       setLatest(sample);
       setConverged(typeof conv === "number" ? conv : null);
       drawChart();
@@ -174,7 +172,12 @@ export function MonitorPanel({ xvf }: Props) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-6">
+        {latest && (
+          <div className="flex justify-center border-b pb-6">
+            <DoaCompass angle={latest.doaAngle} vadActive={latest.vad > 0.5} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard
             label={t("xvf.monitor.doa")}
@@ -182,7 +185,13 @@ export function MonitorPanel({ xvf }: Props) {
           />
           <StatCard
             label={t("xvf.monitor.vad")}
-            value={latest ? (latest.vad > 0.5 ? t("xvf.monitor.vadActive") : t("xvf.monitor.vadIdle")) : "—"}
+            value={
+              latest
+                ? latest.vad > 0.5
+                  ? t("xvf.monitor.vadActive")
+                  : t("xvf.monitor.vadIdle")
+                : "—"
+            }
             accent={latest?.vad ? (latest.vad > 0.5 ? "primary" : undefined) : undefined}
           />
           <StatCard
@@ -241,20 +250,14 @@ export function MonitorPanel({ xvf }: Props) {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: "primary";
-}) {
+function StatCard({ label, value, accent }: { label: string; value: string; accent?: "primary" }) {
   return (
-    <div className="rounded-md border p-3">
-      <div className="text-muted-foreground text-xs tracking-wide uppercase">{label}</div>
+    <div className="border p-3">
+      <div className="text-muted-foreground/60 text-[10px] font-medium tracking-widest uppercase">
+        {label}
+      </div>
       <div
-        className={`mt-1 text-lg font-semibold tabular-nums ${accent === "primary" ? "text-primary" : ""}`}
+        className={`mt-1.5 font-mono text-lg tabular-nums ${accent === "primary" ? "text-foreground" : "text-muted-foreground"}`}
       >
         {value}
       </div>

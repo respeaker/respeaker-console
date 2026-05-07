@@ -10,6 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatNumber } from "@/lib/xvf/format";
 import { residKey } from "@/lib/xvf/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Props = { xvf: UseXvfResult };
 
@@ -30,12 +40,13 @@ export function ConfigPanel({ xvf }: Props) {
   const [values, setValues] = useState<string[]>([]);
   const [busy, setBusy] = useState<"read" | "write" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<"reboot" | "saveConfig" | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return commands;
     return commands.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q),
+      (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
     );
   }, [commands, query]);
 
@@ -63,11 +74,7 @@ export function ConfigPanel({ xvf }: Props) {
     try {
       const res = await read(selected.name);
       if (res) {
-        setValues(
-          res.values.map((v) =>
-            typeof v === "number" ? formatNumber(v, 6) : String(v),
-          ),
-        );
+        setValues(res.values.map((v) => (typeof v === "number" ? formatNumber(v, 6) : String(v))));
         setMessage(t("xvf.config.readOk") ?? "Read OK");
       } else {
         setMessage(t("xvf.config.readFail") ?? "Read failed");
@@ -78,6 +85,22 @@ export function ConfigPanel({ xvf }: Props) {
   };
 
   const doWrite = async () => {
+    if (!selected) return;
+
+    // Check for dangerous operations and show confirmation first
+    if (selected.name === "SAVE_CONFIGURATION") {
+      setConfirmDialog("saveConfig");
+      return;
+    }
+    if (selected.name === "REBOOT") {
+      setConfirmDialog("reboot");
+      return;
+    }
+
+    await executeWrite();
+  };
+
+  const executeWrite = async () => {
     if (!selected) return;
     setBusy("write");
     setMessage(null);
@@ -92,15 +115,18 @@ export function ConfigPanel({ xvf }: Props) {
       });
       const ok = await write(selected.name, parsed);
       setMessage(
-        ok
-          ? (t("xvf.config.writeOk") ?? "Write OK")
-          : (t("xvf.config.writeFail") ?? "Write failed"),
+        ok ? (t("xvf.config.writeOk") ?? "Write OK") : (t("xvf.config.writeFail") ?? "Write failed")
       );
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
       setBusy(null);
     }
+  };
+
+  const handleConfirmDangerous = () => {
+    setConfirmDialog(null);
+    void executeWrite();
   };
 
   const readOnly = selected?.access === "ro";
@@ -239,6 +265,40 @@ export function ConfigPanel({ xvf }: Props) {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={confirmDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDialog(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-medium">
+              {confirmDialog === "reboot"
+                ? t("xvf.confirm.reboot.title")
+                : t("xvf.confirm.saveConfig.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground/80 leading-relaxed">
+              {confirmDialog === "reboot"
+                ? t("xvf.confirm.reboot.description")
+                : t("xvf.confirm.saveConfig.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-normal">{t("xvf.confirm.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant={confirmDialog === "reboot" ? "destructive" : "default"}
+              onClick={handleConfirmDangerous}
+              className="font-normal"
+            >
+              {confirmDialog === "reboot"
+                ? t("xvf.confirm.reboot.confirm")
+                : t("xvf.confirm.saveConfig.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

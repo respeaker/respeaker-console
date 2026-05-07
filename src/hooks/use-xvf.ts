@@ -30,7 +30,7 @@ export interface ReadResult {
 
 export interface UseXvfResult {
   // Devices
-  devices: DeviceInfo[];
+  devices: (DeviceInfo & { path: string })[];
   selectedPath: string | null;
   current: (DeviceInfo & { path: string }) | null;
   loading: boolean;
@@ -68,7 +68,7 @@ function withPath(d: DeviceInfo): DeviceInfo & { path: string } {
 }
 
 export function useXvf(): UseXvfResult {
-  const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [devices, setDevices] = useState<(DeviceInfo & { path: string })[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [current, setCurrent] = useState<(DeviceInfo & { path: string }) | null>(null);
   const [commands, setCommands] = useState<ParameterInfo[]>([]);
@@ -132,10 +132,11 @@ export function useXvf(): UseXvfResult {
     setError(null);
     try {
       const list = await xvf.listDevices();
-      setDevices(list);
+      const withPaths = list.map(withPath);
+      setDevices(withPaths);
       setSelectedPath((prev) => {
-        if (prev && list.some((d) => devicePath(d) === prev)) return prev;
-        return list.length > 0 ? devicePath(list[0]) : null;
+        if (prev && withPaths.some((d) => d.path === prev)) return prev;
+        return withPaths.length > 0 ? withPaths[0].path : null;
       });
       pushLog("info", `Found ${list.length} device(s)`);
     } catch (e) {
@@ -173,7 +174,7 @@ export function useXvf(): UseXvfResult {
 
   const connect = useCallback(
     async (path: string) => {
-      const dev = devices.find((d) => devicePath(d) === path);
+      const dev = devices.find((d) => d.path === path);
       if (!dev) {
         setError("Device not found");
         return;
@@ -199,7 +200,7 @@ export function useXvf(): UseXvfResult {
         setLoading(false);
       }
     },
-    [devices, pushLog],
+    [devices, pushLog]
   );
 
   const disconnect = useCallback(async () => {
@@ -246,7 +247,7 @@ export function useXvf(): UseXvfResult {
         return null;
       }
     },
-    [pushLog],
+    [pushLog]
   );
 
   const write = useCallback(
@@ -260,7 +261,7 @@ export function useXvf(): UseXvfResult {
         return false;
       }
     },
-    [pushLog],
+    [pushLog]
   );
 
   const readMany = useCallback(async (names: string[]) => {
@@ -311,7 +312,7 @@ function formatValues(values: XvfValue[]): string {
         ? Number.isInteger(v)
           ? String(v)
           : Number(v.toFixed(4)).toString()
-        : `"${v}"`,
+        : `"${v}"`
     )
     .join(", ");
 }

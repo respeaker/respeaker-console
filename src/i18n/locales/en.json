@@ -61,7 +61,8 @@
       "no": "No",
       "invalid": "n/a",
       "beamEnergy": "Max beam energy",
-      "beam": "Beam"
+      "beam": "Beam",
+      "compass": "Direction"
     },
     "led": {
       "title": "LED Ring",
@@ -105,6 +106,19 @@
       "all": "All levels",
       "clear": "Clear",
       "export": "Export"
+    },
+    "confirm": {
+      "reboot": {
+        "title": "Reboot Device",
+        "description": "This will restart the device. The USB connection will be lost and the device will re-enumerate.",
+        "confirm": "Reboot"
+      },
+      "saveConfig": {
+        "title": "Save to Flash",
+        "description": "Current settings will be permanently saved to the device flash memory. This cannot be undone.",
+        "confirm": "Save"
+      },
+      "cancel": "Cancel"
     }
   },
   "greet": {
