@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Quality check criteria for frontend code"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify component patterns followed"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards, forbidden patterns, i18n rules"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check for any/assertions/type issues"}
