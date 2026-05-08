@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify code quality standards in new components"}
-{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Check component structure and patterns"}
-{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify TypeScript strictness in new code"}
