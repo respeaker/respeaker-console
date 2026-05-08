@@ -1,13 +1,13 @@
 {
   "app": {
-    "title": "ReSpeaker XVF3800 控制台",
-    "welcome": "ReSpeaker XVF3800 控制台",
+    "title": "ReSpeaker Console",
+    "welcome": "ReSpeaker Console",
     "description": "通过 USB 配置、监控并检查 XCore XVF3800 语音处理器"
   },
   "xvf": {
     "loading": "加载中…",
     "app": {
-      "title": "ReSpeaker XVF3800 控制台",
+      "title": "ReSpeaker Console",
       "subtitle": "通过 USB 配置、监控并检查 XCore XVF3800 语音处理器"
     },
     "tabs": {
@@ -98,14 +98,26 @@
       "readOk": "读取成功",
       "readFail": "读取失败",
       "writeOk": "写入成功",
-      "writeFail": "写入失败"
+      "writeFail": "写入失败",
+      "export": "导出",
+      "import": "导入",
+      "restoreDefaults": "恢复默认",
+      "restoreDefaultsOk": "配置已清除。重启设备以加载出厂默认值。",
+      "saveToFlash": "保存到 Flash",
+      "saveToFlashOk": "配置已保存到闪存",
+      "exportTitle": "导出配置",
+      "importTitle": "导入配置",
+      "exportOk": "配置导出成功",
+      "importInvalid": "无效的预设文件格式",
+      "importDone": "导入完成：{{written}} 个写入成功，{{failed}} 个失败"
     },
     "logs": {
       "title": "事件日志",
       "empty": "暂无日志",
       "all": "全部级别",
       "clear": "清除",
-      "export": "导出"
+      "export": "导出",
+      "exportOk": "日志导出成功"
     },
     "confirm": {
       "reboot": {
@@ -118,27 +130,24 @@
         "description": "当前设置将永久保存到设备闪存中。此操作不可撤销。",
         "confirm": "保存"
       },
+      "import": {
+        "title": "导入配置",
+        "description": "此操作将使用预设文件中的值覆盖当前设备设置。",
+        "confirm": "导入"
+      },
+      "restoreDefaults": {
+        "title": "恢复出厂设置",
+        "description": "此操作将清除已保存的配置，所有参数将恢复为出厂默认值。设备需要重启才能完全生效。",
+        "confirm": "恢复"
+      },
       "cancel": "取消"
     }
-  },
-  "greet": {
-    "title": "来自 Rust 的问候",
-    "description": "测试前端与 Tauri 后端的通信",
-    "placeholder": "输入你的名字...",
-    "button": "问候"
   },
   "about": {
     "title": "关于",
     "button": "关于",
-    "appName": "Tauri 应用模板",
+    "appName": "ReSpeaker Console",
     "version": "版本",
-    "description": "基于 Tauri v2、React 19 和 shadcn/ui 构建的现代桌面应用模板。",
-    "features": "特性",
-    "feature1": "Tauri v2 - 轻量级桌面应用框架",
-    "feature2": "React 19 - 最新的 React 版本",
-    "feature3": "TypeScript - 类型安全",
-    "feature4": "Tailwind CSS v4 - 现代 CSS 框架",
-    "feature5": "shadcn/ui - 精美的 UI 组件",
     "close": "关闭"
   },
   "theme": {

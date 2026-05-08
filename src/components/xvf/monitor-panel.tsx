@@ -48,6 +48,7 @@ export function MonitorPanel({ xvf }: Props) {
   useEffect(() => {
     if (!current || !running) return;
     let alive = true;
+    let timer: number | undefined;
     const tick = async () => {
       const out = await readMany([
         "DOA_VALUE",
@@ -72,12 +73,12 @@ export function MonitorPanel({ xvf }: Props) {
       setLatest(sample);
       setConverged(typeof conv === "number" ? conv : null);
       drawChart();
+      if (alive) timer = window.setTimeout(() => void tick(), intervalMs);
     };
     void tick();
-    const id = window.setInterval(() => void tick(), intervalMs);
     return () => {
       alive = false;
-      window.clearInterval(id);
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [current, running, intervalMs, readMany]);
 

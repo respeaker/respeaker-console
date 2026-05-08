@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollText, Trash2, Download } from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 import type { UseXvfResult } from "@/hooks/use-xvf";
 import type { LogLevel } from "@/lib/xvf/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,19 +36,23 @@ export function LogsPanel({ xvf }: Props) {
     [xvf.logs, level]
   );
 
-  const exportLogs = () => {
+  const exportLogs = async () => {
     const text = xvf.logs
       .map((l) => `[${new Date(l.ts).toISOString()}] ${l.level.toUpperCase()} ${l.message}`)
       .join("\n");
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `respeaker-${new Date().toISOString().replace(/[:.]/g, "-")}.log`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const path = await save({
+        title: t("xvf.logs.export"),
+        defaultPath: `respeaker-${new Date().toISOString().slice(0, 10)}.log`,
+        filters: [{ name: "Log", extensions: ["log", "txt"] }],
+      });
+      if (path) {
+        await writeTextFile(path, text);
+        toast.success(t("xvf.logs.exportOk"));
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
   };
 
   return (

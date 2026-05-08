@@ -1,6 +1,18 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, SlidersHorizontal, RefreshCcw, Save } from "lucide-react";
+import {
+  Search,
+  SlidersHorizontal,
+  RefreshCcw,
+  Save,
+  Download,
+  Upload,
+  RotateCcw,
+} from "lucide-react";
+import { save, open } from "@tauri-apps/plugin-dialog";
+import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { getVersion } from "@tauri-apps/api/app";
+import { toast } from "sonner";
 import type { UseXvfResult } from "@/hooks/use-xvf";
 import type { ParameterInfo } from "@/lib/xvf/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,13 +46,16 @@ const GROUP_LABELS: Record<string, string> = {
 
 export function ConfigPanel({ xvf }: Props) {
   const { t } = useTranslation();
-  const { commands, current, read, write } = xvf;
+  const { commands, current, read, write, readMany } = xvf;
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ParameterInfo | null>(null);
   const [values, setValues] = useState<string[]>([]);
-  const [busy, setBusy] = useState<"read" | "write" | null>(null);
+  const [busy, setBusy] = useState<"read" | "write" | "export" | "import" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<"reboot" | "saveConfig" | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<
+    "reboot" | "saveConfig" | "import" | "restoreDefaults" | null
+  >(null);
+  const [pendingImportData, setPendingImportData] = useState<Record<string, number[]> | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -124,9 +139,148 @@ export function ConfigPanel({ xvf }: Props) {
     }
   };
 
+  const executeSaveToFlash = async () => {
+    setBusy("write");
+    try {
+      const ok = await write("SAVE_CONFIGURATION", [0]);
+      if (ok) toast.success(t("xvf.config.saveToFlashOk"));
+      else toast.error(t("xvf.config.writeFail"));
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handleConfirmDangerous = () => {
+    const dialog = confirmDialog;
     setConfirmDialog(null);
-    void executeWrite();
+    if (dialog === "import") {
+      void executeImport();
+    } else if (dialog === "restoreDefaults") {
+      void executeRestoreDefaults();
+    } else if (dialog === "saveConfig") {
+      void executeSaveToFlash();
+    } else {
+      void executeWrite();
+    }
+  };
+
+  const doRestoreDefaults = () => {
+    setConfirmDialog("restoreDefaults");
+  };
+
+  const executeRestoreDefaults = async () => {
+    setBusy("write");
+    try {
+      const ok = await write("CLEAR_CONFIGURATION", [0]);
+      if (ok) {
+        toast.success(t("xvf.config.restoreDefaultsOk"));
+      } else {
+        toast.error(t("xvf.config.writeFail"));
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doExport = async () => {
+    const readableParams = commands.filter((c) => c.access === "ro" || c.access === "rw");
+    if (readableParams.length === 0) return;
+
+    setBusy("export");
+    try {
+      const names = readableParams.map((c) => c.name);
+      const results = await readMany(names);
+      const parameters: Record<string, (number | string)[]> = {};
+      for (const [name, result] of Object.entries(results)) {
+        parameters[name] = result.values;
+      }
+
+      const appVersion = await getVersion();
+      const preset = {
+        version: "1.0",
+        app_version: appVersion,
+        exported_at: new Date().toISOString(),
+        device: {
+          product_name: current?.product ?? "Unknown",
+          serial: current?.serial ?? null,
+        },
+        parameters,
+      };
+
+      const path = await save({
+        title: t("xvf.config.exportTitle"),
+        defaultPath: `respeaker-config-${new Date().toISOString().slice(0, 10)}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (path) {
+        await writeTextFile(path, JSON.stringify(preset, null, 2));
+        toast.success(t("xvf.config.exportOk"));
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doImport = async () => {
+    setBusy("import");
+    try {
+      const path = await open({
+        title: t("xvf.config.importTitle"),
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+        directory: false,
+      });
+      if (!path) {
+        setBusy(null);
+        return;
+      }
+      const text = await readTextFile(path);
+      const preset: { parameters?: Record<string, number[]> } = JSON.parse(text);
+      if (!preset.parameters || typeof preset.parameters !== "object") {
+        toast.error(t("xvf.config.importInvalid"));
+        setBusy(null);
+        return;
+      }
+      setPendingImportData(preset.parameters);
+      setConfirmDialog("import");
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(null);
+    }
+  };
+
+  const executeImport = async () => {
+    if (!pendingImportData) return;
+    const SKIP_ON_IMPORT = new Set(["SAVE_CONFIGURATION", "REBOOT", "CLEAR_CONFIGURATION"]);
+    try {
+      const writableParams = commands.filter((c) => c.access === "wo" || c.access === "rw");
+      const writableNames = new Set(writableParams.map((c) => c.name));
+      let written = 0;
+      let failed = 0;
+      for (const [name, vals] of Object.entries(pendingImportData)) {
+        if (!writableNames.has(name) || SKIP_ON_IMPORT.has(name)) continue;
+        const ok = await write(name, vals);
+        if (ok) written++;
+        else failed++;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (failed > 0 && written === 0) {
+        toast.error(t("xvf.config.importDone", { written, failed }));
+      } else {
+        toast.success(t("xvf.config.importDone", { written, failed }));
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPendingImportData(null);
+      setBusy(null);
+    }
   };
 
   const readOnly = selected?.access === "ro";
@@ -143,6 +297,45 @@ export function ConfigPanel({ xvf }: Props) {
               {commands.length}
             </Badge>
           </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={doExport}
+              disabled={!current || busy !== null}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {t("xvf.config.export")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={doImport}
+              disabled={!current || busy !== null}
+            >
+              <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {t("xvf.config.import")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive border-destructive/40 hover:bg-destructive/10"
+              onClick={doRestoreDefaults}
+              disabled={!current || busy !== null}
+            >
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {t("xvf.config.restoreDefaults")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmDialog("saveConfig")}
+              disabled={!current || busy !== null}
+            >
+              <Save className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {t("xvf.config.saveToFlash")}
+            </Button>
+          </div>
           <div className="relative">
             <Search
               className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4"
@@ -269,7 +462,13 @@ export function ConfigPanel({ xvf }: Props) {
       <AlertDialog
         open={confirmDialog !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirmDialog(null);
+          if (!open) {
+            setConfirmDialog(null);
+            if (confirmDialog === "import") {
+              setPendingImportData(null);
+              setBusy(null);
+            }
+          }
         }}
       >
         <AlertDialogContent className="max-w-sm">
@@ -277,24 +476,40 @@ export function ConfigPanel({ xvf }: Props) {
             <AlertDialogTitle className="font-medium">
               {confirmDialog === "reboot"
                 ? t("xvf.confirm.reboot.title")
-                : t("xvf.confirm.saveConfig.title")}
+                : confirmDialog === "import"
+                  ? t("xvf.confirm.import.title")
+                  : confirmDialog === "restoreDefaults"
+                    ? t("xvf.confirm.restoreDefaults.title")
+                    : t("xvf.confirm.saveConfig.title")}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground/80 leading-relaxed">
               {confirmDialog === "reboot"
                 ? t("xvf.confirm.reboot.description")
-                : t("xvf.confirm.saveConfig.description")}
+                : confirmDialog === "import"
+                  ? t("xvf.confirm.import.description")
+                  : confirmDialog === "restoreDefaults"
+                    ? t("xvf.confirm.restoreDefaults.description")
+                    : t("xvf.confirm.saveConfig.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="font-normal">{t("xvf.confirm.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              variant={confirmDialog === "reboot" ? "destructive" : "default"}
+              variant={
+                confirmDialog === "reboot" || confirmDialog === "restoreDefaults"
+                  ? "destructive"
+                  : "default"
+              }
               onClick={handleConfirmDangerous}
               className="font-normal"
             >
               {confirmDialog === "reboot"
                 ? t("xvf.confirm.reboot.confirm")
-                : t("xvf.confirm.saveConfig.confirm")}
+                : confirmDialog === "import"
+                  ? t("xvf.confirm.import.confirm")
+                  : confirmDialog === "restoreDefaults"
+                    ? t("xvf.confirm.restoreDefaults.confirm")
+                    : t("xvf.confirm.saveConfig.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

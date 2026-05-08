@@ -3,12 +3,6 @@ mod xvf;
 
 use tauri::Manager;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[tauri::command]
 fn update_tray_menu(app: tauri::AppHandle, show_text: String, quit_text: String) -> Result<(), String> {
     plugins::system_tray::update_tray_menu(&app, &show_text, &quit_text)
@@ -26,10 +20,11 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(plugins::system_tray::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             update_tray_menu,
             xvf::commands::xvf_list_commands,
             xvf::commands::xvf_list_devices,

@@ -1,12 +1,12 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Activity, Lightbulb, ScrollText, SlidersHorizontal, UsbIcon, Volume2 } from "lucide-react";
 
 import { WindowFrame } from "@/components/window-frame";
 import { MainTitleBar } from "@/components/main-title-bar";
 import { UpdaterDialog } from "@/components/updater-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toaster } from "@/components/ui/sonner";
+import { AppSidebar, STORAGE_KEY_TAB, type NavTab } from "@/components/app-sidebar";
 import { ConnectionStatus } from "@/components/xvf/connection-status";
 import { DevicePanel } from "@/components/xvf/device-panel";
 import { AudioPanel } from "@/components/xvf/audio-panel";
@@ -18,8 +18,6 @@ import { toggleWindow } from "@/lib/window";
 import { useAppTranslation } from "@/hooks/use-app-translation";
 import { useXvf } from "@/hooks/use-xvf";
 
-// The configuration table is heavy (renders every firmware parameter). Lazy
-// load it so the initial dashboard paint stays snappy.
 const ConfigPanel = lazy(() =>
   import("@/components/xvf/config-panel").then((m) => ({ default: m.ConfigPanel }))
 );
@@ -29,6 +27,14 @@ const SHORTCUT_KEY = "global-shortcut-show-main";
 export default function HomePage() {
   const { t } = useAppTranslation();
   const xvf = useXvf();
+  const [activeTab, setActiveTab] = useState<NavTab>(() => {
+    return (localStorage.getItem(STORAGE_KEY_TAB) as NavTab) || "device";
+  });
+
+  const handleTabChange = (tab: NavTab) => {
+    setActiveTab(tab);
+    localStorage.setItem(STORAGE_KEY_TAB, tab);
+  };
 
   useEffect(() => {
     const unlistenShortcutChanged = listen<{ shortcut: string }>(
@@ -72,15 +78,17 @@ export default function HomePage() {
 
   return (
     <WindowFrame
+      sidebar={<AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />}
       titleBar={<MainTitleBar />}
       contentClassName="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6"
     >
+      <Toaster />
       <UpdaterDialog />
 
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-semibold tracking-tight text-balance">
+            <h1 className="text-xl font-semibold tracking-tight text-balance">
               {t("xvf.app.title")}
             </h1>
             <p className="text-muted-foreground text-sm">{t("xvf.app.subtitle")}</p>
@@ -93,57 +101,20 @@ export default function HomePage() {
         </div>
       </header>
 
-      <Tabs defaultValue="device" className="flex min-h-0 flex-1 flex-col gap-4">
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="device" className="gap-2">
-            <UsbIcon className="h-4 w-4" aria-hidden />
-            <span>{t("xvf.tabs.device")}</span>
-          </TabsTrigger>
-          <TabsTrigger value="audio" className="gap-2">
-            <Volume2 className="h-4 w-4" aria-hidden />
-            <span>{t("xvf.tabs.audio")}</span>
-          </TabsTrigger>
-          <TabsTrigger value="monitor" className="gap-2">
-            <Activity className="h-4 w-4" aria-hidden />
-            <span>{t("xvf.tabs.monitor")}</span>
-          </TabsTrigger>
-          <TabsTrigger value="led" className="gap-2">
-            <Lightbulb className="h-4 w-4" aria-hidden />
-            <span>{t("xvf.tabs.led")}</span>
-          </TabsTrigger>
-          <TabsTrigger value="config" className="gap-2">
-            <SlidersHorizontal className="h-4 w-4" aria-hidden />
-            <span>{t("xvf.tabs.config")}</span>
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="gap-2">
-            <ScrollText className="h-4 w-4" aria-hidden />
-            <span>{t("xvf.tabs.logs")}</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="device" className="mt-0">
-          <DevicePanel xvf={xvf} />
-        </TabsContent>
-        <TabsContent value="audio" className="mt-0">
-          <AudioPanel xvf={xvf} />
-        </TabsContent>
-        <TabsContent value="monitor" className="mt-0">
-          <MonitorPanel xvf={xvf} />
-        </TabsContent>
-        <TabsContent value="led" className="mt-0">
-          <LedPanel xvf={xvf} />
-        </TabsContent>
-        <TabsContent value="config" className="mt-0">
+      <div className="flex min-h-0 flex-1 flex-col">
+        {activeTab === "device" && <DevicePanel xvf={xvf} />}
+        {activeTab === "audio" && <AudioPanel xvf={xvf} />}
+        {activeTab === "monitor" && <MonitorPanel xvf={xvf} />}
+        {activeTab === "led" && <LedPanel xvf={xvf} />}
+        {activeTab === "config" && (
           <Suspense
             fallback={<div className="text-muted-foreground p-6 text-sm">{t("xvf.loading")}</div>}
           >
             <ConfigPanel xvf={xvf} />
           </Suspense>
-        </TabsContent>
-        <TabsContent value="logs" className="mt-0">
-          <LogsPanel xvf={xvf} />
-        </TabsContent>
-      </Tabs>
+        )}
+        {activeTab === "logs" && <LogsPanel xvf={xvf} />}
+      </div>
     </WindowFrame>
   );
 }

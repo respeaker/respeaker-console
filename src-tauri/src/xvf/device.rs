@@ -6,11 +6,14 @@
 use std::thread;
 use std::time::Duration;
 
+use once_cell::sync::Lazy;
 use rusb::{
     request_type, Context, Device, DeviceHandle, Direction, Recipient, RequestType, UsbContext,
 };
 
 use super::parameters::{response_length, Parameter};
+
+static USB_CONTEXT: Lazy<Context> = Lazy::new(|| Context::new().expect("failed to create libusb context"));
 
 pub const DEFAULT_VID: u16 = 0x2886;
 pub const USB_TIMEOUT: Duration = Duration::from_millis(5000);
@@ -34,6 +37,7 @@ pub enum XvfError {
     #[error("usb error: {0}")]
     Usb(#[from] rusb::Error),
     #[error("unknown parameter: {0}")]
+    #[allow(dead_code)]
     UnknownParameter(String),
     #[error("parameter {0} is read-only")]
     ReadOnly(String),
@@ -65,14 +69,14 @@ pub enum XvfError {
 
 // Small wrapper around rusb's global default Context so we can reuse it and
 // talk to multiple devices without paying the initialization cost every call.
+#[allow(dead_code)]
 pub fn list_devices() -> Result<Vec<DeviceDescriptor>, XvfError> {
     list_devices_with_vid(DEFAULT_VID)
 }
 
 pub fn list_devices_with_vid(vid: u16) -> Result<Vec<DeviceDescriptor>, XvfError> {
     let mut out = Vec::new();
-    let ctx = Context::new()?;
-    for device in ctx.devices()?.iter() {
+    for device in USB_CONTEXT.devices()?.iter() {
         let descriptor = match device.device_descriptor() {
             Ok(d) => d,
             Err(_) => continue,
@@ -131,8 +135,7 @@ impl XvfDevice {
         pid: Option<u16>,
         bus_address: Option<(u8, u8)>,
     ) -> Result<Self, XvfError> {
-        let ctx = Context::new()?;
-        for device in ctx.devices()?.iter() {
+        for device in USB_CONTEXT.devices()?.iter() {
             let d = match device.device_descriptor() {
                 Ok(d) => d,
                 Err(_) => continue,
@@ -239,6 +242,7 @@ impl XvfDevice {
         self.control_out(0, wvalue, windex, &payload)
     }
 
+    #[allow(dead_code)]
     pub fn write_parameter_strbytes(&self, param: &Parameter, bytes: &[u8]) -> Result<(), XvfError> {
         if !param.is_writable() {
             return Err(XvfError::ReadOnly(param.name.to_string()));

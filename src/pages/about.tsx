@@ -48,13 +48,13 @@ export default function AboutPage() {
   }, []);
 
   const handleOpenGithub = async () => {
-    await openUrl("https://github.com/kitlib/tauri-app-template");
+    await openUrl("https://github.com/Wkstr/reSpeaker_desktop_app");
   };
 
   return (
     <WindowFrame
       titleBar={<TitleBar title={t("about.title")} showMinimize={false} showMaximize={false} />}
-      contentClassName="flex flex-1 items-center justify-center overflow-hidden"
+      contentClassName="flex flex-1 items-center justify-center overflow-auto"
     >
       <div className="w-full max-w-xs space-y-6">
         <div className="text-center">

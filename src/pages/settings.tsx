@@ -74,10 +74,10 @@ export default function SettingsPage() {
   return (
     <WindowFrame
       titleBar={<TitleBar title={t("settings.title")} showMaximize={false} />}
-      contentClassName="flex flex-1 overflow-hidden"
+      contentClassName="flex min-h-0 flex-1 overflow-hidden"
     >
       <Toaster />
-      <aside className="border-border flex w-40 flex-col border-r p-4">
+      <aside className="border-border flex w-40 flex-col overflow-y-auto border-r p-4">
         <nav className="flex-1 space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;

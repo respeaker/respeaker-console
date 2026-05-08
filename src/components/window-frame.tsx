@@ -5,12 +5,19 @@ import { useEffect, useState, type ReactNode } from "react";
 
 type WindowFrameProps = {
   titleBar: ReactNode;
+  sidebar?: ReactNode;
   children: ReactNode;
   className?: string;
   contentClassName?: string;
 };
 
-export function WindowFrame({ titleBar, children, className, contentClassName }: WindowFrameProps) {
+export function WindowFrame({
+  titleBar,
+  sidebar,
+  children,
+  className,
+  contentClassName,
+}: WindowFrameProps) {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -32,13 +39,17 @@ export function WindowFrame({ titleBar, children, className, contentClassName }:
     <ThemeProvider defaultTheme="system" storageKey="tauri-ui-theme">
       <div
         className={cn(
-          "bg-background flex h-screen w-screen flex-col overflow-hidden",
+          "bg-background flex h-screen w-screen overflow-hidden",
           isMaximized ? "" : "border-border rounded-lg border",
+          sidebar ? "flex-row" : "flex-col",
           className
         )}
       >
-        {titleBar}
-        <main className={contentClassName}>{children}</main>
+        {sidebar}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {titleBar}
+          <main className={cn("min-h-0 flex-1", contentClassName)}>{children}</main>
+        </div>
       </div>
     </ThemeProvider>
   );

@@ -35,7 +35,7 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
   return (
     <div className={cn("flex flex-col items-center gap-3", className)}>
       <svg
-        viewBox="0 0 200 200"
+        viewBox="-20 -5 240 210"
         className="h-48 w-48"
         aria-label={`DOA: ${Math.round(normalized)}°`}
       >

@@ -1,13 +1,13 @@
 {
   "app": {
-    "title": "ReSpeaker XVF3800 Console",
-    "welcome": "ReSpeaker XVF3800 Console",
+    "title": "ReSpeaker Console",
+    "welcome": "ReSpeaker Console",
     "description": "Configure, monitor, and inspect the XCore XVF3800 voice processor"
   },
   "xvf": {
     "loading": "Loading…",
     "app": {
-      "title": "ReSpeaker XVF3800 Console",
+      "title": "ReSpeaker Console",
       "subtitle": "Configure, monitor, and inspect the XCore XVF3800 voice processor over USB"
     },
     "tabs": {
@@ -98,14 +98,26 @@
       "readOk": "Read OK",
       "readFail": "Read failed",
       "writeOk": "Write OK",
-      "writeFail": "Write failed"
+      "writeFail": "Write failed",
+      "export": "Export",
+      "import": "Import",
+      "restoreDefaults": "Restore Defaults",
+      "restoreDefaultsOk": "Configuration cleared. Reboot the device to load factory defaults.",
+      "saveToFlash": "Save to Flash",
+      "saveToFlashOk": "Configuration saved to flash memory",
+      "exportTitle": "Export Configuration",
+      "importTitle": "Import Configuration",
+      "exportOk": "Configuration exported successfully",
+      "importInvalid": "Invalid preset file format",
+      "importDone": "Import complete: {{written}} written, {{failed}} failed"
     },
     "logs": {
       "title": "Event Log",
       "empty": "No log entries yet",
       "all": "All levels",
       "clear": "Clear",
-      "export": "Export"
+      "export": "Export",
+      "exportOk": "Logs exported successfully"
     },
     "confirm": {
       "reboot": {
@@ -118,27 +130,24 @@
         "description": "Current settings will be permanently saved to the device flash memory. This cannot be undone.",
         "confirm": "Save"
       },
+      "import": {
+        "title": "Import Configuration",
+        "description": "This will overwrite current device settings with values from the preset file.",
+        "confirm": "Import"
+      },
+      "restoreDefaults": {
+        "title": "Restore Factory Defaults",
+        "description": "This will clear the saved configuration and revert all parameters to their factory defaults. The device will need to be rebooted for changes to take full effect.",
+        "confirm": "Restore"
+      },
       "cancel": "Cancel"
     }
-  },
-  "greet": {
-    "title": "Greet from Rust",
-    "description": "Test the communication between frontend and Tauri backend",
-    "placeholder": "Enter your name...",
-    "button": "Greet"
   },
   "about": {
     "title": "About",
     "button": "About",
-    "appName": "Tauri App Template",
+    "appName": "ReSpeaker Console",
     "version": "Version",
-    "description": "A modern desktop application template built with Tauri v2, React 19, and shadcn/ui.",
-    "features": "Features",
-    "feature1": "Tauri v2 - Lightweight desktop app framework",
-    "feature2": "React 19 - Latest React version",
-    "feature3": "TypeScript - Type safety",
-    "feature4": "Tailwind CSS v4 - Modern CSS framework",
-    "feature5": "shadcn/ui - Beautiful UI components",
     "close": "Close"
   },
   "theme": {
