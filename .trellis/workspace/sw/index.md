@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
-- **Last Active**: 2026-05-07
+- **Total Sessions**: 2
+- **Last Active**: 2026-05-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~41 | Active |
+| `journal-1.md` | ~74 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-05-08 | ReSpeaker Console UI overhaul | `2f10abc` | `main` |
 | 1 | 2026-05-07 | DOA compass + confirmation dialogs | `13b4721`, `8753238` | `main` |
 <!-- @@@/auto:session-history -->
 

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Sidebar is a major new component; need component patterns"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Need to know where to place new sidebar component"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Sidebar state persistence (localStorage) patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code quality rules for new UI code"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing WindowFrame/TitleBar patterns"}
