@@ -15,17 +15,32 @@ jobs:
       matrix:
         include:
           - name: "macos-arm64"
+            os: "macos"
+            arch: "arm64"
             platform: "macos-latest"
-            args: "--target aarch64-apple-darwin --bundles app"
+            target: "aarch64-apple-darwin"
+            bundles: "app,dmg"
           - name: "macos-x64"
+            os: "macos"
+            arch: "x64"
             platform: "macos-latest"
-            args: "--target x86_64-apple-darwin --bundles app"
+            target: "x86_64-apple-darwin"
+            bundles: "app,dmg"
           - name: "linux-x64"
+            os: "linux"
+            arch: "x64"
             platform: "ubuntu-22.04"
-            args: "--bundles appimage,deb"
+            bundles: "appimage,deb,rpm"
+          - name: "linux-arm64"
+            os: "linux"
+            arch: "arm64"
+            platform: "ubuntu-22.04-arm"
+            bundles: "appimage,deb,rpm"
           - name: "windows-x64"
+            os: "windows"
+            arch: "x64"
             platform: "windows-latest"
-            args: "--bundles nsis"
+            bundles: "nsis,msi"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -33,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.os == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -53,6 +68,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Export app version
+        shell: bash
+        run: echo "APP_VERSION=$(node -p 'require(\"./src-tauri/tauri.conf.json\").version')" >> "$GITHUB_ENV"
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -75,6 +94,30 @@ jobs:
 
           echo "Updater configured with endpoint: ${ENDPOINT}"
 
+      - name: Validate signing secrets
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY secret. Set it to the full private key content, not the key file path."
+            exit 1
+          fi
+
+          if [ -z "${TAURI_SIGNING_PUBLIC_KEY}" ]; then
+            echo "::error::Missing TAURI_SIGNING_PUBLIC_KEY secret. Set it to the generated public key string."
+            exit 1
+          fi
+
+          echo "Signing secrets detected."
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}" ]; then
+            echo "Signing key password is empty."
+          else
+            echo "Signing key password detected."
+          fi
+
       - name: Build the project
         uses: tauri-apps/tauri-action@v0
         id: tauri-action
@@ -85,7 +128,60 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "ReSpeaker Console v__VERSION__"
-          releaseBody: "Desktop release bundles for Windows, macOS, and Linux. Download the asset that matches your platform."
+          releaseBody: |
+            ReSpeaker Console v__VERSION__
+
+            Cross-platform desktop release for ReSpeaker XVF3800 device management.
+
+            Included assets:
+            - Windows: NSIS installer, MSI installer, and portable ZIP
+            - macOS: `.app` bundle, `.dmg` installer, updater archive, and portable ZIP
+            - Linux: AppImage, DEB, RPM, and portable ZIP
+
+            Notes:
+            - Download the asset that matches your operating system and architecture.
+            - Auto-update artifacts and signature files are included for supported platforms.
+            - See the repository documentation for device support, setup requirements, and update behavior.
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.target && format('--target {0} --bundles {1}', matrix.target, matrix.bundles) || format('--bundles {0}', matrix.bundles) }}
+
+      - name: Create portable archive (Unix)
+        if: matrix.os != 'windows'
+        shell: bash
+        run: |
+          mkdir -p "src-tauri/target/release/bundle/portable"
+
+          if [ "${{ matrix.os }}" = "macos" ]; then
+            APP_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos/ReSpeaker Console.app"
+            ARCHIVE="src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${APP_VERSION}_macos-${{ matrix.arch }}_portable.zip"
+            ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ARCHIVE}"
+          else
+            BIN_PATH="src-tauri/target/release/respeaker-console"
+            STAGE_DIR="$(mktemp -d)"
+            cp "${BIN_PATH}" "${STAGE_DIR}/respeaker-console"
+            chmod +x "${STAGE_DIR}/respeaker-console"
+            ARCHIVE="src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${APP_VERSION}_linux-${{ matrix.arch }}_portable.zip"
+            (
+              cd "${STAGE_DIR}"
+              zip -r "${GITHUB_WORKSPACE}/${ARCHIVE}" .
+            )
+          fi
+
+      - name: Create portable archive (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "src-tauri/target/release/bundle/portable" | Out-Null
+          Compress-Archive `
+            -Path "src-tauri/target/release/respeaker-console.exe" `
+            -DestinationPath "src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${env:APP_VERSION}_windows-${{ matrix.arch }}_portable.zip" `
+            -Force
+
+      - name: Upload portable archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: src-tauri/target/release/bundle/portable/*.zip
+          append_body: false
+          fail_on_unmatched_files: true
