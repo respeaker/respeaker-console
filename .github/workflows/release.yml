@@ -51,7 +51,24 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            curl \
+            wget \
+            file \
+            patchelf \
+            libssl-dev \
+            rpm \
+            xdg-utils \
+            libfuse2 \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev \
+            || sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.0-dev
+          sudo apt-get install -y --no-install-recommends libsoup-3.0-dev \
+            || sudo apt-get install -y --no-install-recommends libsoup2.4-dev
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -150,10 +167,21 @@ jobs:
         if: matrix.os != 'windows'
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p "src-tauri/target/release/bundle/portable"
 
           if [ "${{ matrix.os }}" = "macos" ]; then
-            APP_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos/ReSpeaker Console.app"
+            APP_DIR=$(find \
+              "src-tauri/target/${{ matrix.target }}/release/bundle/macos" \
+              -maxdepth 1 \
+              -type d \
+              -name "*.app" \
+              | head -1)
+            if [ -z "${APP_DIR}" ]; then
+              echo "::error::No macOS app bundle found under src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+              find "src-tauri/target/${{ matrix.target }}/release/bundle" -maxdepth 3 -print || true
+              exit 1
+            fi
             ARCHIVE="src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${APP_VERSION}_macos-${{ matrix.arch }}_portable.zip"
             ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ARCHIVE}"
           else
