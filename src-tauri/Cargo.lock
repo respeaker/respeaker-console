@@ -3128,7 +3128,7 @@ dependencies = [
 
 [[package]]
 name = "respeaker-console"
-version = "0.2.2"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "log",
