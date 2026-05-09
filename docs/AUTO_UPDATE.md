@@ -22,11 +22,11 @@ https://github.com/<owner>/<repo>/releases/latest/download/latest.json
 Run the following command to generate a key pair:
 
 ```bash
-pnpm tauri signer generate -w ~/.tauri/myapp.key
+pnpm tauri signer generate -w ~/.tauri/respeaker-console.key
 ```
 
 This will output:
-- **Private key**: Saved to `~/.tauri/myapp.key`
+- **Private key**: Saved to `~/.tauri/respeaker-console.key`
 - **Public key**: A string starting with `dW50cnVzdGVkIGNvbW1lbnQ6...`
 
 Keep the private key secret.
@@ -35,7 +35,7 @@ Keep the private key secret.
 
 Add the following secrets to your GitHub repository under Settings → Secrets and variables → Actions:
 
-1. `TAURI_SIGNING_PRIVATE_KEY` - Content of `~/.tauri/myapp.key`
+1. `TAURI_SIGNING_PRIVATE_KEY` - Content of `~/.tauri/respeaker-console.key`
 2. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` - Password you set, if any
 3. `TAURI_SIGNING_PUBLIC_KEY` - Public key generated in Step 1
 

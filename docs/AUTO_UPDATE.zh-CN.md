@@ -22,11 +22,11 @@ https://github.com/<owner>/<repo>/releases/latest/download/latest.json
 运行以下命令生成密钥对：
 
 ```bash
-pnpm tauri signer generate -w ~/.tauri/myapp.key
+pnpm tauri signer generate -w ~/.tauri/respeaker-console.key
 ```
 
 该命令会输出：
-- **私钥**：保存到 `~/.tauri/myapp.key`
+- **私钥**：保存到 `~/.tauri/respeaker-console.key`
 - **公钥**：一个以 `dW50cnVzdGVkIGNvbW1lbnQ6...` 开头的字符串
 
 请妥善保管私钥。
@@ -35,7 +35,7 @@ pnpm tauri signer generate -w ~/.tauri/myapp.key
 
 在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加以下 Secrets：
 
-1. `TAURI_SIGNING_PRIVATE_KEY` - `~/.tauri/myapp.key` 的内容
+1. `TAURI_SIGNING_PRIVATE_KEY` - `~/.tauri/respeaker-console.key` 的内容
 2. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` - 你设置的密码（如果有）
 3. `TAURI_SIGNING_PUBLIC_KEY` - 第 1 步生成的公钥
 

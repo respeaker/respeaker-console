@@ -1,8 +1,8 @@
-# Tauri App Template
+# ReSpeaker Console
 
 ## Project Overview
 
-Modern desktop application template built with Tauri v2 + React 19 + TypeScript + shadcn/ui.
+Desktop control application for ReSpeaker XVF3800 built with Tauri v2 + React 19 + TypeScript + shadcn/ui.
 
 ## Architecture
 
@@ -226,8 +226,8 @@ System-level calls, native features, cross-platform desktop app wrapper.
 - `capabilities/default.json` - Permissions config
 
 **Key Settings**:
-- Product: `tauri-app-template`
-- Identifier: `com.template.tauri-app`
+- Product: `ReSpeaker Console`
+- Identifier: `com.wkstr.respeaker-console`
 - Window: 800x600
 - Dev Port: 1420
 

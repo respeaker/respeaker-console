@@ -71,9 +71,9 @@ pub fn run() {
 
 ```json
 {
-  "productName": "tauri-app-template",
+  "productName": "ReSpeaker Console",
   "version": "0.1.0",
-  "identifier": "com.template.tauri-app",
+  "identifier": "com.wkstr.respeaker-console",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",

@@ -4,7 +4,7 @@ This guide explains how to implement global shortcuts in Tauri v2 applications u
 
 ## Overview
 
-Global shortcuts allow your application to respond to keyboard combinations even when the app is not focused. This template provides a complete implementation with:
+Global shortcuts allow your application to respond to keyboard combinations even when the app is not focused. This project provides a complete implementation with:
 
 - Keyboard event capture and conversion
 - Shortcut registration/unregistration
