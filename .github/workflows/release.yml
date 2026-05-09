@@ -6,29 +6,31 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
-  publish-tauri:
-    permissions:
-      contents: write
+  build-release-assets:
+    name: >-
+      build-release-assets (${{ matrix.name }}, ${{ matrix.os }}, ${{ matrix.arch }},
+      ${{ matrix.platform }}, ${{ matrix.bundles }})
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: "macos-arm64"
+          - name: "macos-universal"
             os: "macos"
-            arch: "arm64"
-            platform: "macos-latest"
-            target: "aarch64-apple-darwin"
-            bundles: "app,dmg"
-          - name: "macos-x64"
-            os: "macos"
-            arch: "x64"
-            platform: "macos-latest"
-            target: "x86_64-apple-darwin"
+            arch: "universal"
+            platform: "macos-14"
             bundles: "app,dmg"
           - name: "linux-x64"
             os: "linux"
-            arch: "x64"
+            arch: "x86_64"
             platform: "ubuntu-22.04"
             bundles: "appimage,deb,rpm"
           - name: "linux-arm64"
@@ -39,17 +41,43 @@ jobs:
           - name: "windows-x64"
             os: "windows"
             arch: "x64"
-            platform: "windows-latest"
-            bundles: "nsis,msi"
+            platform: "windows-2022"
+            bundles: "msi"
 
-    runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS targets
+        if: matrix.os == 'macos'
+        shell: bash
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Export app version
+        shell: bash
+        run: |
+          echo "APP_VERSION=$(node -p 'require(\"./src-tauri/tauri.conf.json\").version')" >> "$GITHUB_ENV"
+          echo "TAG_VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
       - name: Install Linux system dependencies
         if: matrix.os == 'linux'
+        shell: bash
         run: |
+          set -euxo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
@@ -70,26 +98,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends libsoup-3.0-dev \
             || sudo apt-get install -y --no-install-recommends libsoup2.4-dev
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: pnpm
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: Export app version
-        shell: bash
-        run: echo "APP_VERSION=$(node -p 'require(\"./src-tauri/tauri.conf.json\").version')" >> "$GITHUB_ENV"
-
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -105,11 +113,8 @@ jobs:
           ENDPOINT="https://github.com/${REPO}/releases/latest/download/latest.json"
           PUBKEY="${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}"
 
-          # Replace placeholders in tauri.conf.json
           sed -i.bak "s|__TAURI_UPDATER_ENDPOINT__|${ENDPOINT}|g" src-tauri/tauri.conf.json
           sed -i.bak "s|__TAURI_UPDATER_PUBKEY__|${PUBKEY}|g" src-tauri/tauri.conf.json
-
-          echo "Updater configured with endpoint: ${ENDPOINT}"
 
       - name: Validate signing secrets
         shell: bash
@@ -118,98 +123,189 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
         run: |
+          set -euo pipefail
           if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
-            echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY secret. Set it to the full private key content, not the key file path."
+            echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY secret. Set it to the full private key content."
             exit 1
           fi
-
           if [ -z "${TAURI_SIGNING_PUBLIC_KEY}" ]; then
             echo "::error::Missing TAURI_SIGNING_PUBLIC_KEY secret. Set it to the generated public key string."
             exit 1
           fi
 
-          echo "Signing secrets detected."
-          if [ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}" ]; then
-            echo "Signing key password is empty."
-          else
-            echo "Signing key password detected."
-          fi
-
-      - name: Build the project
-        uses: tauri-apps/tauri-action@v0
-        id: tauri-action
+      - name: Build Tauri App (macOS)
+        if: matrix.os == 'macos'
+        shell: bash
+        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: v__VERSION__
-          releaseName: "ReSpeaker Console v__VERSION__"
-          releaseBody: |
-            ReSpeaker Console v__VERSION__
 
-            Cross-platform desktop release for ReSpeaker XVF3800 device management.
+      - name: Build Tauri App (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: pnpm tauri build --bundles msi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-            Included assets:
-            - Windows: NSIS installer, MSI installer, and portable ZIP
-            - macOS: `.app` bundle, `.dmg` installer, updater archive, and portable ZIP
-            - Linux: AppImage, DEB, RPM, and portable ZIP
+      - name: Build Tauri App (Linux)
+        if: matrix.os == 'linux'
+        shell: bash
+        run: pnpm tauri build --bundles appimage,deb,rpm
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-            Notes:
-            - Download the asset that matches your operating system and architecture.
-            - Auto-update artifacts and signature files are included for supported platforms.
-            - See the repository documentation for device support, setup requirements, and update behavior.
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.target && format('--target {0} --bundles {1}', matrix.target, matrix.bundles) || format('--bundles {0}', matrix.bundles) }}
-
-      - name: Create portable archive (Unix)
-        if: matrix.os != 'windows'
+      - name: Prepare macOS assets
+        if: matrix.os == 'macos'
         shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p "src-tauri/target/release/bundle/portable"
+          set -euxo pipefail
+          mkdir -p release-assets
 
-          if [ "${{ matrix.os }}" = "macos" ]; then
-            APP_DIR=$(find \
-              "src-tauri/target/${{ matrix.target }}/release/bundle/macos" \
-              -maxdepth 1 \
-              -type d \
-              -name "*.app" \
-              | head -1)
-            if [ -z "${APP_DIR}" ]; then
-              echo "::error::No macOS app bundle found under src-tauri/target/${{ matrix.target }}/release/bundle/macos"
-              find "src-tauri/target/${{ matrix.target }}/release/bundle" -maxdepth 3 -print || true
-              exit 1
-            fi
-            ARCHIVE="src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${APP_VERSION}_macos-${{ matrix.arch }}_portable.zip"
-            ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ARCHIVE}"
-          else
-            BIN_PATH="src-tauri/target/release/respeaker-console"
-            STAGE_DIR="$(mktemp -d)"
-            cp "${BIN_PATH}" "${STAGE_DIR}/respeaker-console"
-            chmod +x "${STAGE_DIR}/respeaker-console"
-            ARCHIVE="src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${APP_VERSION}_linux-${{ matrix.arch }}_portable.zip"
-            (
-              cd "${STAGE_DIR}"
-              zip -r "${GITHUB_WORKSPACE}/${ARCHIVE}" .
-            )
-          fi
+          DMG=$(find "src-tauri/target/universal-apple-darwin/release/bundle" -name "*.dmg" | head -1)
+          TAR_GZ=$(find "src-tauri/target/universal-apple-darwin/release/bundle" -name "*.app.tar.gz" | head -1)
+          APP_DIR=$(find "src-tauri/target/universal-apple-darwin/release/bundle/macos" -maxdepth 1 -type d -name "*.app" | head -1)
 
-      - name: Create portable archive (Windows)
+          cp "${DMG}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.dmg"
+          cp "${TAR_GZ}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.tar.gz"
+          cp "${TAR_GZ}.sig" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.tar.gz.sig"
+          ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.zip"
+
+      - name: Prepare Windows assets
         if: matrix.os == 'windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "src-tauri/target/release/bundle/portable" | Out-Null
-          Compress-Archive `
-            -Path "src-tauri/target/release/respeaker-console.exe" `
-            -DestinationPath "src-tauri/target/release/bundle/portable/ReSpeaker-Console_v${env:APP_VERSION}_windows-${{ matrix.arch }}_portable.zip" `
-            -Force
+          New-Item -ItemType Directory -Force -Path "release-assets" | Out-Null
 
-      - name: Upload portable archive to release
+          $msi = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -Filter "*.msi" | Select-Object -First 1
+          if ($null -eq $msi) {
+            throw "No MSI bundle found"
+          }
+
+          Copy-Item $msi.FullName "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows.msi"
+          if (Test-Path "$($msi.FullName).sig") {
+            Copy-Item "$($msi.FullName).sig" "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows.msi.sig"
+          }
+
+          $portableDir = "release-assets/portable"
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          Copy-Item "src-tauri/target/release/respeaker-console.exe" "$portableDir/ReSpeaker-Console.exe"
+          Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows-Portable.zip" -Force
+          Remove-Item -Recurse -Force $portableDir
+
+      - name: Prepare Linux assets
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p release-assets
+
+          APPIMAGE=$(find "src-tauri/target/release/bundle" -name "*.AppImage" | head -1)
+          DEB=$(find "src-tauri/target/release/bundle" -name "*.deb" | head -1)
+          RPM=$(find "src-tauri/target/release/bundle" -name "*.rpm" | head -1)
+
+          cp "${APPIMAGE}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.AppImage"
+          cp "${APPIMAGE}.sig" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.AppImage.sig"
+          cp "${DEB}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.deb"
+          cp "${RPM}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.rpm"
+
+      - name: List prepared assets
+        shell: bash
+        run: ls -la release-assets
+
+      - name: Upload release assets to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.os }}-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish-release:
+    name: "Publish GitHub Release"
+    runs-on: ubuntu-22.04
+    needs: build-release-assets
+    permissions:
+      contents: write
+    steps:
+      - name: Download built release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate latest.json
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+
+          MAC_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-macOS.tar.gz"
+          MAC_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-macOS.tar.gz.sig")
+          WIN_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-Windows.msi"
+          WIN_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-Windows.msi.sig")
+          LINUX_X64_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-Linux-x86_64.AppImage"
+          LINUX_X64_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-Linux-x86_64.AppImage.sig")
+          LINUX_ARM64_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-Linux-arm64.AppImage"
+          LINUX_ARM64_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-Linux-arm64.AppImage.sig")
+
+          cat > "release-assets/latest.json" <<EOF
+          {
+            "version": "${VERSION}",
+            "notes": "Release ${TAG}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MAC_SIG}",
+                "url": "${MAC_URL}"
+              },
+              "darwin-x86_64": {
+                "signature": "${MAC_SIG}",
+                "url": "${MAC_URL}"
+              },
+              "windows-x86_64": {
+                "signature": "${WIN_SIG}",
+                "url": "${WIN_URL}"
+              },
+              "linux-x86_64": {
+                "signature": "${LINUX_X64_SIG}",
+                "url": "${LINUX_X64_URL}"
+              },
+              "linux-aarch64": {
+                "signature": "${LINUX_ARM64_SIG}",
+                "url": "${LINUX_ARM64_URL}"
+              }
+            }
+          }
+          EOF
+
+      - name: List final release assets
+        shell: bash
+        run: ls -la release-assets
+
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: src-tauri/target/release/bundle/portable/*.zip
-          append_body: false
-          fail_on_unmatched_files: true
+          name: ReSpeaker Console ${{ github.ref_name }}
+          body: |
+            ## ReSpeaker Console ${{ github.ref_name }}
+
+            Desktop release for ReSpeaker XVF3800 device management.
+
+            ### Downloads
+
+            - **macOS**: `ReSpeaker-Console-${{ github.ref_name }}-macOS.dmg` or `ReSpeaker-Console-${{ github.ref_name }}-macOS.zip`
+            - **Windows**: `ReSpeaker-Console-${{ github.ref_name }}-Windows.msi` or `ReSpeaker-Console-${{ github.ref_name }}-Windows-Portable.zip`
+            - **Linux (x86_64)**: `ReSpeaker-Console-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
+            - **Linux (ARM64)**: `ReSpeaker-Console-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
+
+            > `ReSpeaker-Console-${{ github.ref_name }}-macOS.tar.gz` and `latest.json` are updater assets for in-app updates.
+          files: release-assets/*
