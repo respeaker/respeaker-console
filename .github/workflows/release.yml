@@ -1,9 +1,10 @@
-name: 'publish'
+name: "publish"
 
 on:
+  workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   publish-tauri:
@@ -13,19 +14,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-#          - platform: 'macos-latest' # for Arm based macs (M1 and above).
-#            args: '--target aarch64-apple-darwin'
-#          - platform: 'macos-latest' # for Intel based macs.
-#            args: '--target x86_64-apple-darwin'
-#          - platform: 'ubuntu-22.04'
-#            args: ''
-          - platform: 'windows-latest'
-            args: '--bundles nsis,updater'
+          - name: "macos-arm64"
+            platform: "macos-latest"
+            args: "--target aarch64-apple-darwin --bundles app"
+          - name: "macos-x64"
+            platform: "macos-latest"
+            args: "--target x86_64-apple-darwin --bundles app"
+          - name: "linux-x64"
+            platform: "ubuntu-22.04"
+            args: "--bundles appimage,deb"
+          - name: "windows-x64"
+            platform: "windows-latest"
+            args: "--bundles nsis"
 
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -46,7 +57,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -73,8 +84,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseName: "ReSpeaker Console v__VERSION__"
+          releaseBody: "Desktop release bundles for Windows, macOS, and Linux. Download the asset that matches your platform."
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

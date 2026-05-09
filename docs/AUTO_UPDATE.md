@@ -4,6 +4,8 @@ This guide explains the release and auto-update flow used by this project.
 
 ## Overview
 
+This project ships as desktop bundles through GitHub Releases. It does not depend on a public web deployment for product delivery.
+
 This project uses GitHub Releases as the updater backend. During the release workflow, GitHub Actions replaces the updater placeholders in `src-tauri/tauri.conf.json` so the application points to:
 
 ```text
@@ -16,6 +18,7 @@ https://github.com/<owner>/<repo>/releases/latest/download/latest.json
 2. Add the signing secrets to GitHub Actions
 3. Release from the `main` branch
 4. Publish releases with tags in the `vX.Y.Z` format
+5. Build on GitHub-hosted runners for Windows, macOS, and Linux
 
 ## Step 1: Generate Signing Keys
 
@@ -26,6 +29,7 @@ pnpm tauri signer generate -w ~/.tauri/respeaker-console.key
 ```
 
 This will output:
+
 - **Private key**: Saved to `~/.tauri/respeaker-console.key`
 - **Public key**: A string starting with `dW50cnVzdGVkIGNvbW1lbnQ6...`
 
@@ -58,12 +62,14 @@ pnpm release:version
 ```
 
 The script performs release preflight checks before it makes changes:
+
 - Ensures the working tree is clean
 - Requires the current branch to be `main`
 - Verifies the three version files are consistent
 - Checks that the target tag does not already exist locally or on `origin`
 
 Then it:
+
 - Updates all version files together
 - Creates a release commit
 - Creates a `vX.Y.Z` tag
@@ -74,8 +80,11 @@ The GitHub Actions workflow is triggered by `v*` tags.
 ## Step 5: Verify the Published Assets
 
 After GitHub Actions finishes, verify that the latest published release contains updater assets such as:
+
 - `latest.json`
-- Windows updater bundle artifacts
+- Windows installer and signature artifacts
+- macOS app bundle, updater archive, and signature artifacts
+- Linux AppImage and signature artifacts
 - Signature files
 
 If `latest.json` is missing from the latest published release, updater clients cannot discover updates.
@@ -92,14 +101,17 @@ If `latest.json` is missing from the latest published release, updater clients c
 ## Troubleshooting
 
 **Update check fails:**
+
 - Check that `latest.json` exists in the latest release assets
 - Confirm the signing keys are configured correctly
 
 **No update detected:**
+
 - Confirm the installed app version is lower than the latest release version
 - Confirm the release tag uses the `vX.Y.Z` format
 
 **Signature verification fails:**
+
 - Make sure `TAURI_SIGNING_PRIVATE_KEY` matches `TAURI_SIGNING_PUBLIC_KEY`
 - Rebuild and republish the release after correcting secrets
 

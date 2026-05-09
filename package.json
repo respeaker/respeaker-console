@@ -10,7 +10,7 @@
     "release:version": "node scripts/release-version.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build --bundles nsis",
+    "tauri:build": "tauri build",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "lint": "eslint src/**/*.{ts,tsx} vite.config.ts",
