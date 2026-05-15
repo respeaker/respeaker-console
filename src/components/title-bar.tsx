@@ -90,6 +90,10 @@ export function TitleBar({
     }
   };
 
+  const stopDragPropagation = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+  };
+
   return (
     <div
       className={cn(
@@ -117,7 +121,9 @@ export function TitleBar({
 
         {showMinimize && (
           <button
+            type="button"
             onClick={handleMinimize}
+            onMouseDown={stopDragPropagation}
             className="title-bar-control"
             aria-label="Minimize"
             tabIndex={-1}
@@ -128,7 +134,9 @@ export function TitleBar({
 
         {showMaximize && (
           <button
+            type="button"
             onClick={handleToggleMaximize}
+            onMouseDown={stopDragPropagation}
             className="title-bar-control"
             aria-label={isMaximized ? "Restore" : "Maximize"}
             tabIndex={-1}
@@ -139,7 +147,9 @@ export function TitleBar({
 
         {showClose && (
           <button
+            type="button"
             onClick={handleClose}
+            onMouseDown={stopDragPropagation}
             className="title-bar-control hover:bg-destructive hover:text-destructive-foreground"
             aria-label="Close"
             tabIndex={-1}

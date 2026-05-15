@@ -109,7 +109,6 @@ export function useXvf(): UseXvfResult {
         else cleanup = () => fn();
       })
       .catch((e) => {
-        // eslint-disable-next-line no-console
         console.error("[v0] xvf log subscribe failed", e);
       });
     return () => {

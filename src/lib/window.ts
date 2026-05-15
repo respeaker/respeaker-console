@@ -181,6 +181,7 @@ export async function createWindow(
     y?: number;
     decorations?: boolean;
     transparent?: boolean;
+    acceptFirstMouse?: boolean;
     alwaysOnTop?: boolean;
     skipTaskbar?: boolean;
     shadow?: boolean;
@@ -230,7 +231,7 @@ export async function createWindow(
     }
 
     // Create new window with centered position
-    const finalOptions = { ...options };
+    const finalOptions = { acceptFirstMouse: true, ...options };
     if (options.parent && !options.x && !options.y) {
       const width = options.width || 500;
       const height = options.height || 400;

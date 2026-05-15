@@ -32,6 +32,7 @@
         "minHeight": 640,
         "decorations": false,
         "transparent": true,
+        "acceptFirstMouse": true,
         "center": true,
         "shadow": false,
         "visible": false
