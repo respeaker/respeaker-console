@@ -1,213 +1,404 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Volume2, MicOff, Gauge, ShieldCheck } from "lucide-react";
+import { Gauge, MicOff, SlidersHorizontal, Sparkles, Volume2, Waves } from "lucide-react";
+
 import type { UseXvfResult } from "@/hooks/use-xvf";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/xvf/format";
+import type { ParameterInfo, XvfValue } from "@/lib/xvf/types";
 
 type Props = { xvf: UseXvfResult };
 
-// Maps UI widgets to the real XVF3800 parameter names defined in
-// src-tauri/src/xvf/parameters.rs. Adjust the min/max ranges here if the
-// firmware evolves, not in the Rust layer.
+type NumericKind = "float" | "int";
+
+type NumericControlDef = {
+  kind: "numeric";
+  name: string;
+  labelKey: string;
+  groupKey: string;
+  min: number;
+  max: number;
+  step: number;
+  digits: number;
+  valueKind: NumericKind;
+  unit?: string;
+};
+
+type ToggleControlDef = {
+  kind: "toggle";
+  name: string;
+  labelKey: string;
+  groupKey: string;
+};
+
+type AudioControlDef = NumericControlDef | ToggleControlDef;
+
+type ControlState = Record<string, number>;
+
+const CONTROL_DEFS: AudioControlDef[] = [
+  {
+    kind: "numeric",
+    name: "AUDIO_MGR_MIC_GAIN",
+    labelKey: "xvf.audio.micGain",
+    groupKey: "xvf.audio.groups.gain",
+    min: 0,
+    max: 10,
+    step: 0.05,
+    digits: 2,
+    valueKind: "float",
+    unit: "x",
+  },
+  {
+    kind: "numeric",
+    name: "AUDIO_MGR_REF_GAIN",
+    labelKey: "xvf.audio.refGain",
+    groupKey: "xvf.audio.groups.gain",
+    min: 0,
+    max: 10,
+    step: 0.05,
+    digits: 2,
+    valueKind: "float",
+    unit: "x",
+  },
+  {
+    kind: "numeric",
+    name: "PP_AGCDESIREDLEVEL",
+    labelKey: "xvf.audio.agcTarget",
+    groupKey: "xvf.audio.groups.gain",
+    min: 0.001,
+    max: 1,
+    step: 0.001,
+    digits: 4,
+    valueKind: "float",
+  },
+  {
+    kind: "numeric",
+    name: "PP_AGCMAXGAIN",
+    labelKey: "xvf.audio.agcMaxGain",
+    groupKey: "xvf.audio.groups.gain",
+    min: 1,
+    max: 1000,
+    step: 1,
+    digits: 0,
+    valueKind: "float",
+    unit: "x",
+  },
+  {
+    kind: "numeric",
+    name: "PP_MGSCALE",
+    labelKey: "xvf.audio.mgScale",
+    groupKey: "xvf.audio.groups.gain",
+    min: 0,
+    max: 4,
+    step: 0.01,
+    digits: 2,
+    valueKind: "float",
+  },
+  {
+    kind: "numeric",
+    name: "PP_MIN_NN",
+    labelKey: "xvf.audio.minNn",
+    groupKey: "xvf.audio.groups.noiseSuppression",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    digits: 2,
+    valueKind: "float",
+  },
+  {
+    kind: "numeric",
+    name: "PP_MIN_NS",
+    labelKey: "xvf.audio.minNs",
+    groupKey: "xvf.audio.groups.noiseSuppression",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    digits: 2,
+    valueKind: "float",
+  },
+  {
+    kind: "toggle",
+    name: "PP_NLATTENONOFF",
+    labelKey: "xvf.audio.nlAtten",
+    groupKey: "xvf.audio.groups.noiseSuppression",
+  },
+  {
+    kind: "numeric",
+    name: "PP_DTSENSITIVE",
+    labelKey: "xvf.audio.dtSensitive",
+    groupKey: "xvf.audio.groups.detection",
+    min: 0,
+    max: 10,
+    step: 1,
+    digits: 0,
+    valueKind: "int",
+  },
+  {
+    kind: "numeric",
+    name: "PP_FMIN_SPEINDEX",
+    labelKey: "xvf.audio.fminSpeindex",
+    groupKey: "xvf.audio.groups.detection",
+    min: 0,
+    max: 8000,
+    step: 10,
+    digits: 0,
+    valueKind: "float",
+    unit: "Hz",
+  },
+  {
+    kind: "numeric",
+    name: "AUDIO_MGR_OP_L",
+    labelKey: "xvf.audio.outputLeft",
+    groupKey: "xvf.audio.groups.output",
+    min: 0,
+    max: 255,
+    step: 1,
+    digits: 0,
+    valueKind: "int",
+  },
+  {
+    kind: "numeric",
+    name: "AUDIO_MGR_OP_R",
+    labelKey: "xvf.audio.outputRight",
+    groupKey: "xvf.audio.groups.output",
+    min: 0,
+    max: 255,
+    step: 1,
+    digits: 0,
+    valueKind: "int",
+  },
+  {
+    kind: "toggle",
+    name: "SHF_BYPASS",
+    labelKey: "xvf.audio.aecBypass",
+    groupKey: "xvf.audio.groups.detection",
+  },
+  {
+    kind: "toggle",
+    name: "PP_AGCONOFF",
+    labelKey: "xvf.audio.agcOn",
+    groupKey: "xvf.audio.groups.gain",
+  },
+  {
+    kind: "toggle",
+    name: "PP_ECHOONOFF",
+    labelKey: "xvf.audio.echoOn",
+    groupKey: "xvf.audio.groups.noiseSuppression",
+  },
+  {
+    kind: "toggle",
+    name: "PP_LIMITONOFF",
+    labelKey: "xvf.audio.limiterOn",
+    groupKey: "xvf.audio.groups.output",
+  },
+];
+
+const GROUPS = [
+  { key: "xvf.audio.groups.noiseSuppression", icon: Waves },
+  { key: "xvf.audio.groups.gain", icon: Gauge },
+  { key: "xvf.audio.groups.detection", icon: Sparkles },
+  { key: "xvf.audio.groups.output", icon: Volume2 },
+] as const;
+
 export function AudioPanel({ xvf }: Props) {
   const { t } = useTranslation();
-  const { current, read, write } = xvf;
-
-  const [micGain, setMicGain] = useState(1.0);
-  const [refGain, setRefGain] = useState(1.0);
-  const [shfBypass, setShfBypass] = useState(false); // 1 = bypass AEC
-  const [agcOn, setAgcOn] = useState(true);
-  const [echoOn, setEchoOn] = useState(true);
-  const [limitOn, setLimitOn] = useState(true);
-  const [agcTarget, setAgcTarget] = useState(0.1);
+  const { current, commands, readMany, write } = xvf;
+  const [values, setValues] = useState<ControlState>({});
   const [ready, setReady] = useState(false);
+
+  const availableControls = useMemo(() => {
+    const writable = new Map(
+      commands.filter((param) => param.access === "rw").map((param) => [param.name, param])
+    );
+    return CONTROL_DEFS.flatMap((def) => {
+      const param = writable.get(def.name);
+      if (!param) return [];
+      return [{ def, param }];
+    });
+  }, [commands]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!current) return;
+      if (!current || availableControls.length === 0) {
+        setReady(false);
+        return;
+      }
       setReady(false);
-      const [mg, rg, shf, agc, echo, lim, tgt] = await Promise.all([
-        read("AUDIO_MGR_MIC_GAIN"),
-        read("AUDIO_MGR_REF_GAIN"),
-        read("SHF_BYPASS"),
-        read("PP_AGCONOFF"),
-        read("PP_ECHOONOFF"),
-        read("PP_LIMITONOFF"),
-        read("PP_AGCDESIREDLEVEL"),
-      ]);
+      const results = await readMany(availableControls.map(({ def }) => def.name));
       if (cancelled) return;
-      if (mg && typeof mg.values[0] === "number") setMicGain(mg.values[0]);
-      if (rg && typeof rg.values[0] === "number") setRefGain(rg.values[0]);
-      if (shf && typeof shf.values[0] === "number") setShfBypass(shf.values[0] > 0.5);
-      if (agc && typeof agc.values[0] === "number") setAgcOn(agc.values[0] > 0.5);
-      if (echo && typeof echo.values[0] === "number") setEchoOn(echo.values[0] > 0.5);
-      if (lim && typeof lim.values[0] === "number") setLimitOn(lim.values[0] > 0.5);
-      if (tgt && typeof tgt.values[0] === "number") setAgcTarget(tgt.values[0]);
+      const next: ControlState = {};
+      for (const { def } of availableControls) {
+        const value = resultNumber(results[def.name]?.values);
+        if (value != null) next[def.name] = value;
+      }
+      setValues(next);
       setReady(true);
     }
     void load();
     return () => {
       cancelled = true;
     };
-  }, [current, read]);
+  }, [availableControls, current, readMany]);
 
-  const disabled = useMemo(() => !current || !ready, [current, ready]);
+  const disabled = !current || !ready;
+
+  const writeValue = async (def: AudioControlDef, param: ParameterInfo, value: number) => {
+    const normalized = def.kind === "numeric" ? normalizeValue(def, value) : value > 0.5 ? 1 : 0;
+    setValues((prev) => ({ ...prev, [def.name]: normalized }));
+    await write(def.name, valuesForParam(param, normalized));
+  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
-          <Volume2 className="text-primary h-5 w-5" aria-hidden />
+          <SlidersHorizontal className="text-primary h-5 w-5" aria-hidden />
           {t("xvf.audio.title")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-6 md:grid-cols-2">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2">
-              <Gauge className="text-muted-foreground h-4 w-4" aria-hidden />
-              {t("xvf.audio.micGain")}
-            </Label>
-            <Badge variant="outline" className="tabular-nums">
-              {formatNumber(micGain, 2)}×
-            </Badge>
-          </div>
-          <Slider
-            value={[micGain]}
-            min={0}
-            max={10}
-            step={0.05}
-            onValueChange={(v) => setMicGain(v[0] ?? 0)}
-            onValueCommit={(v) => void write("AUDIO_MGR_MIC_GAIN", [v[0] ?? 0])}
-            disabled={disabled}
-            aria-label={t("xvf.audio.micGain") ?? "Mic gain"}
-          />
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2">
-              <Volume2 className="text-muted-foreground h-4 w-4" aria-hidden />
-              {t("xvf.audio.refGain")}
-            </Label>
-            <Badge variant="outline" className="tabular-nums">
-              {formatNumber(refGain, 2)}×
-            </Badge>
-          </div>
-          <Slider
-            value={[refGain]}
-            min={0}
-            max={10}
-            step={0.05}
-            onValueChange={(v) => setRefGain(v[0] ?? 0)}
-            onValueCommit={(v) => void write("AUDIO_MGR_REF_GAIN", [v[0] ?? 0])}
-            disabled={disabled}
-            aria-label={t("xvf.audio.refGain") ?? "Reference gain"}
-          />
-        </div>
-
-        <div className="flex flex-col gap-3 md:col-span-2">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2">
-              <ShieldCheck className="text-muted-foreground h-4 w-4" aria-hidden />
-              {t("xvf.audio.agcTarget")}
-            </Label>
-            <Badge variant="outline" className="tabular-nums">
-              {formatNumber(agcTarget, 4)}
-            </Badge>
-          </div>
-          <Slider
-            value={[agcTarget]}
-            min={0.001}
-            max={1}
-            step={0.001}
-            onValueChange={(v) => setAgcTarget(v[0] ?? 0)}
-            onValueCommit={(v) => void write("PP_AGCDESIREDLEVEL", [v[0] ?? 0])}
-            disabled={disabled || !agcOn}
-            aria-label={t("xvf.audio.agcTarget") ?? "AGC target"}
-          />
-        </div>
-
-        <ToggleRow
-          id="shf"
-          label={t("xvf.audio.aecBypass")}
-          checked={shfBypass}
-          onChange={(v) => {
-            setShfBypass(v);
-            void write("SHF_BYPASS", [v ? 1 : 0]);
-          }}
-          disabled={disabled}
-          icon={<MicOff className="text-muted-foreground h-4 w-4" aria-hidden />}
-        />
-
-        <ToggleRow
-          id="agc"
-          label={t("xvf.audio.agcOn")}
-          checked={agcOn}
-          onChange={(v) => {
-            setAgcOn(v);
-            void write("PP_AGCONOFF", [v ? 1 : 0]);
-          }}
-          disabled={disabled}
-          icon={<Gauge className="text-muted-foreground h-4 w-4" aria-hidden />}
-        />
-
-        <ToggleRow
-          id="echo"
-          label={t("xvf.audio.echoOn")}
-          checked={echoOn}
-          onChange={(v) => {
-            setEchoOn(v);
-            void write("PP_ECHOONOFF", [v ? 1 : 0]);
-          }}
-          disabled={disabled}
-          icon={<ShieldCheck className="text-muted-foreground h-4 w-4" aria-hidden />}
-        />
-
-        <ToggleRow
-          id="limit"
-          label={t("xvf.audio.limiterOn")}
-          checked={limitOn}
-          onChange={(v) => {
-            setLimitOn(v);
-            void write("PP_LIMITONOFF", [v ? 1 : 0]);
-          }}
-          disabled={disabled}
-          icon={<ShieldCheck className="text-muted-foreground h-4 w-4" aria-hidden />}
-        />
+      <CardContent className="grid gap-4 xl:grid-cols-2">
+        {GROUPS.map((group) => {
+          const controls = availableControls.filter(({ def }) => def.groupKey === group.key);
+          if (controls.length === 0) return null;
+          const Icon = group.icon;
+          return (
+            <section key={group.key} className="rounded-lg border p-4">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-medium">
+                <Icon className="text-muted-foreground h-4 w-4" aria-hidden />
+                {t(group.key)}
+              </h3>
+              <div className="flex flex-col gap-5">
+                {controls.map(({ def, param }) =>
+                  def.kind === "toggle" ? (
+                    <ToggleControl
+                      key={def.name}
+                      id={def.name}
+                      label={t(def.labelKey)}
+                      checked={(values[def.name] ?? 0) > 0.5}
+                      onChange={(checked) => void writeValue(def, param, checked ? 1 : 0)}
+                      disabled={disabled}
+                    />
+                  ) : (
+                    <NumericControl
+                      key={def.name}
+                      def={def}
+                      label={t(def.labelKey)}
+                      value={values[def.name] ?? def.min}
+                      disabled={disabled}
+                      onChange={(value) =>
+                        setValues((prev) => ({ ...prev, [def.name]: normalizeValue(def, value) }))
+                      }
+                      onCommit={(value) => void writeValue(def, param, value)}
+                    />
+                  )
+                )}
+              </div>
+            </section>
+          );
+        })}
       </CardContent>
     </Card>
   );
 }
 
-function ToggleRow({
+function NumericControl({
+  def,
+  label,
+  value,
+  disabled,
+  onChange,
+  onCommit,
+}: {
+  def: NumericControlDef;
+  label: string;
+  value: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+  onCommit: (value: number) => void;
+}) {
+  const displayValue = normalizeValue(def, value);
+  const formatted = `${formatNumber(displayValue, def.digits)}${def.unit ?? ""}`;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={def.name} className="text-sm">
+          {label}
+        </Label>
+        <Badge variant="outline" className="tabular-nums">
+          {formatted}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3">
+        <Slider
+          id={def.name}
+          value={[displayValue]}
+          min={def.min}
+          max={def.max}
+          step={def.step}
+          onValueChange={(next) => onChange(next[0] ?? def.min)}
+          onValueCommit={(next) => onCommit(next[0] ?? def.min)}
+          disabled={disabled}
+          aria-label={label}
+        />
+        <Input
+          type="number"
+          value={String(displayValue)}
+          min={def.min}
+          max={def.max}
+          step={def.step}
+          onChange={(event) => onChange(Number(event.target.value))}
+          onBlur={(event) => onCommit(Number(event.target.value))}
+          disabled={disabled}
+          aria-label={label}
+          className="h-8 text-right tabular-nums"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ToggleControl({
   id,
   label,
   checked,
   onChange,
   disabled,
-  icon,
 }: {
   id: string;
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
-  icon?: React.ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between rounded-md border p-3">
       <Label htmlFor={id} className="flex items-center gap-2">
-        {icon}
+        <MicOff className="text-muted-foreground h-4 w-4" aria-hidden />
         {label}
       </Label>
       <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   );
+}
+
+function resultNumber(values?: XvfValue[]): number | null {
+  const value = values?.[0];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeValue(def: NumericControlDef, value: number): number {
+  if (!Number.isFinite(value)) return def.min;
+  const clamped = Math.min(def.max, Math.max(def.min, value));
+  return def.valueKind === "int" ? Math.round(clamped) : clamped;
+}
+
+function valuesForParam(param: ParameterInfo, value: number): XvfValue[] {
+  return Array.from({ length: param.length }, () => value);
 }

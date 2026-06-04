@@ -1,9 +1,13 @@
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
+
 import { cn } from "@/lib/utils";
+import type { XvfArrayType } from "@/hooks/use-xvf";
 
 interface DoaCompassProps {
   angle: number;
   vadActive: boolean;
+  mode?: XvfArrayType;
   className?: string;
 }
 
@@ -15,10 +19,10 @@ const INNER_R2 = 32;
 const NEEDLE_R = 72;
 const TICK_COUNT = 36;
 
-export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
+function DoaCompassComponent({ angle, vadActive, mode = "circular", className }: DoaCompassProps) {
   const { t } = useTranslation();
-  const normalized = ((angle % 360) + 360) % 360;
-  const rad = ((normalized - 90) * Math.PI) / 180;
+  const displayAngle = mode === "linear" ? clampLinearAngle(angle) : normalizeCircularAngle(angle);
+  const rad = angleToRad(displayAngle, mode);
 
   const nx = CX + NEEDLE_R * Math.cos(rad);
   const ny = CY + NEEDLE_R * Math.sin(rad);
@@ -35,105 +39,14 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
   return (
     <div className={cn("flex flex-col items-center gap-3", className)}>
       <svg
-        viewBox="-20 -5 240 210"
-        className="h-48 w-48"
-        aria-label={`DOA: ${Math.round(normalized)}°`}
+        viewBox={mode === "linear" ? "-20 0 240 125" : "-20 -5 240 210"}
+        className={cn("w-48", mode === "linear" ? "h-32" : "h-48")}
+        aria-label={`DOA: ${Math.round(displayAngle)}°`}
       >
-        {/* Outer ring */}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={OUTER_R}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="0.75"
-          className="text-border"
-        />
+        {mode === "linear" ? <LinearFace /> : <CircularFace />}
 
-        {/* Inner concentric rings */}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={INNER_R}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="0.4"
-          className="text-border/40"
-          strokeDasharray="1.5 3"
-        />
-        <circle
-          cx={CX}
-          cy={CY}
-          r={INNER_R2}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="0.4"
-          className="text-border/30"
-          strokeDasharray="1 2.5"
-        />
-
-        {/* Tick marks — 36 ticks every 10° */}
-        {Array.from({ length: TICK_COUNT }).map((_, i) => {
-          const deg = i * 10;
-          const isMajor = deg % 90 === 0;
-          const isMinor = deg % 30 === 0 && !isMajor;
-          const tickRad = ((deg - 90) * Math.PI) / 180;
-          const outerEnd = OUTER_R;
-          const innerStart = isMajor ? OUTER_R - 8 : isMinor ? OUTER_R - 5 : OUTER_R - 3;
-          const sw = isMajor ? 1.2 : isMinor ? 0.7 : 0.4;
-          const opacity = isMajor ? "text-muted-foreground" : "text-muted-foreground/40";
-          return (
-            <line
-              key={i}
-              x1={CX + innerStart * Math.cos(tickRad)}
-              y1={CY + innerStart * Math.sin(tickRad)}
-              x2={CX + outerEnd * Math.cos(tickRad)}
-              y2={CY + outerEnd * Math.sin(tickRad)}
-              stroke="currentColor"
-              strokeWidth={sw}
-              className={opacity}
-            />
-          );
-        })}
-
-        {/* Cardinal degree labels */}
-        <text
-          x={CX}
-          y={CY - OUTER_R - 5}
-          textAnchor="middle"
-          className="fill-muted-foreground text-[8px]"
-        >
-          0°
-        </text>
-        <text
-          x={CX + OUTER_R + 6}
-          y={CY + 3}
-          textAnchor="start"
-          className="fill-muted-foreground text-[8px]"
-        >
-          90°
-        </text>
-        <text
-          x={CX}
-          y={CY + OUTER_R + 11}
-          textAnchor="middle"
-          className="fill-muted-foreground text-[8px]"
-        >
-          180°
-        </text>
-        <text
-          x={CX - OUTER_R - 6}
-          y={CY + 3}
-          textAnchor="end"
-          className="fill-muted-foreground text-[8px]"
-        >
-          270°
-        </text>
-
-        {/* Center dot */}
         <circle cx={CX} cy={CY} r="2" className={cn("transition-colors", fillColor)} />
 
-        {/* Needle line */}
         <line
           x1={CX}
           y1={CY}
@@ -144,16 +57,14 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
           className={cn("transition-colors", strokeColor)}
         />
 
-        {/* Needle tip */}
         <polygon
           points={`${nx},${ny} ${tx1},${ty1} ${tx2},${ty2}`}
           className={cn("transition-colors", fillColor)}
         />
 
-        {/* VAD indicator dot at bottom-right of compass face */}
         <circle
           cx={CX + 28}
-          cy={CY + 28}
+          cy={CY + (mode === "linear" ? -18 : 28)}
           r="3"
           className={cn(
             "transition-colors",
@@ -162,7 +73,7 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
         />
         <text
           x={CX + 28}
-          y={CY + 37}
+          y={CY + (mode === "linear" ? -9 : 37)}
           textAnchor="middle"
           className="fill-muted-foreground/60 text-[5px] uppercase"
         >
@@ -170,7 +81,6 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
         </text>
       </svg>
 
-      {/* Angle readout */}
       <div className="flex flex-col items-center gap-0.5">
         <span
           className={cn(
@@ -178,7 +88,7 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
             vadActive ? "text-foreground" : "text-muted-foreground"
           )}
         >
-          {Math.round(normalized)}°
+          {Math.round(displayAngle)}°
         </span>
         <span className="text-muted-foreground/60 text-[10px] font-medium tracking-widest uppercase">
           {t("xvf.monitor.compass")}
@@ -187,3 +97,176 @@ export function DoaCompass({ angle, vadActive, className }: DoaCompassProps) {
     </div>
   );
 }
+
+function CircularFace() {
+  return (
+    <>
+      <circle
+        cx={CX}
+        cy={CY}
+        r={OUTER_R}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.75"
+        className="text-border"
+      />
+      <circle
+        cx={CX}
+        cy={CY}
+        r={INNER_R}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.4"
+        className="text-border/40"
+        strokeDasharray="1.5 3"
+      />
+      <circle
+        cx={CX}
+        cy={CY}
+        r={INNER_R2}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.4"
+        className="text-border/30"
+        strokeDasharray="1 2.5"
+      />
+
+      {Array.from({ length: TICK_COUNT }).map((_, i) => {
+        const deg = i * 10;
+        const isMajor = deg % 90 === 0;
+        const isMinor = deg % 30 === 0 && !isMajor;
+        const tickRad = ((deg - 90) * Math.PI) / 180;
+        const innerStart = isMajor ? OUTER_R - 8 : isMinor ? OUTER_R - 5 : OUTER_R - 3;
+        const sw = isMajor ? 1.2 : isMinor ? 0.7 : 0.4;
+        const opacity = isMajor ? "text-muted-foreground" : "text-muted-foreground/40";
+        return (
+          <line
+            key={i}
+            x1={CX + innerStart * Math.cos(tickRad)}
+            y1={CY + innerStart * Math.sin(tickRad)}
+            x2={CX + OUTER_R * Math.cos(tickRad)}
+            y2={CY + OUTER_R * Math.sin(tickRad)}
+            stroke="currentColor"
+            strokeWidth={sw}
+            className={opacity}
+          />
+        );
+      })}
+
+      <DegreeLabel x={CX} y={CY - OUTER_R - 5} anchor="middle" text="0°" />
+      <DegreeLabel x={CX + OUTER_R + 6} y={CY + 3} anchor="start" text="90°" />
+      <DegreeLabel x={CX} y={CY + OUTER_R + 11} anchor="middle" text="180°" />
+      <DegreeLabel x={CX - OUTER_R - 6} y={CY + 3} anchor="end" text="270°" />
+    </>
+  );
+}
+
+function LinearFace() {
+  return (
+    <>
+      <path
+        d={semicirclePath(OUTER_R)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.75"
+        className="text-border"
+      />
+      <path
+        d={semicirclePath(INNER_R)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.4"
+        className="text-border/40"
+        strokeDasharray="1.5 3"
+      />
+      <path
+        d={semicirclePath(INNER_R2)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.4"
+        className="text-border/30"
+        strokeDasharray="1 2.5"
+      />
+      <line
+        x1={CX - OUTER_R}
+        y1={CY}
+        x2={CX + OUTER_R}
+        y2={CY}
+        stroke="currentColor"
+        strokeWidth="0.75"
+        className="text-border"
+      />
+
+      {Array.from({ length: 19 }).map((_, i) => {
+        const deg = i * 10;
+        const isMajor = deg % 45 === 0 || deg === 0 || deg === 180;
+        const rad = angleToRad(deg, "linear");
+        const innerStart = isMajor ? OUTER_R - 8 : OUTER_R - 4;
+        return (
+          <line
+            key={deg}
+            x1={CX + innerStart * Math.cos(rad)}
+            y1={CY + innerStart * Math.sin(rad)}
+            x2={CX + OUTER_R * Math.cos(rad)}
+            y2={CY + OUTER_R * Math.sin(rad)}
+            stroke="currentColor"
+            strokeWidth={isMajor ? 1.1 : 0.45}
+            className={isMajor ? "text-muted-foreground" : "text-muted-foreground/40"}
+          />
+        );
+      })}
+
+      {[0, 45, 90, 135, 180].map((deg) => {
+        const rad = angleToRad(deg, "linear");
+        return (
+          <DegreeLabel
+            key={deg}
+            x={CX + (OUTER_R + 11) * Math.cos(rad)}
+            y={CY + (OUTER_R + 11) * Math.sin(rad) + 3}
+            anchor="middle"
+            text={`${deg}°`}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function DegreeLabel({
+  x,
+  y,
+  anchor,
+  text,
+}: {
+  x: number;
+  y: number;
+  anchor: "start" | "middle" | "end";
+  text: string;
+}) {
+  return (
+    <text x={x} y={y} textAnchor={anchor} className="fill-muted-foreground text-[8px]">
+      {text}
+    </text>
+  );
+}
+
+function normalizeCircularAngle(angle: number): number {
+  return ((angle % 360) + 360) % 360;
+}
+
+function clampLinearAngle(angle: number): number {
+  return Math.min(180, Math.max(0, angle));
+}
+
+function angleToRad(angle: number, mode: XvfArrayType): number {
+  if (mode === "linear") {
+    return ((180 - angle) * Math.PI) / 180;
+  }
+  return ((normalizeCircularAngle(angle) - 90) * Math.PI) / 180;
+}
+
+function semicirclePath(radius: number): string {
+  return `M ${CX - radius} ${CY} A ${radius} ${radius} 0 0 1 ${CX + radius} ${CY}`;
+}
+
+export const DoaCompass = memo(DoaCompassComponent);

@@ -1,27 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Search,
-  SlidersHorizontal,
-  RefreshCcw,
-  Save,
-  Download,
-  Upload,
-  RotateCcw,
-} from "lucide-react";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { Download, RefreshCcw, RotateCcw, Save, Search, Upload } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
+
 import type { UseXvfResult } from "@/hooks/use-xvf";
-import type { ParameterInfo } from "@/lib/xvf/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatNumber } from "@/lib/xvf/format";
-import { residKey } from "@/lib/xvf/types";
+import type { ParameterInfo, XvfValue } from "@/lib/xvf/types";
+import { RESID } from "@/lib/xvf/types";
+import { formatValue } from "@/lib/xvf/format";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,110 +21,193 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Props = { xvf: UseXvfResult };
 
-const GROUP_LABELS: Record<string, string> = {
-  APP: "Application",
-  AEC: "AEC",
-  AUDIO_MGR: "Audio Manager",
-  GPO_LED: "GPO / LED",
-  PP: "Post-Processing",
-  OTHER: "Other",
+type ConfigCategory = "audio" | "aec" | "postproc" | "ledGpio" | "system" | "other";
+type BusyState = "read" | "write" | "export" | "import" | null;
+type ConfirmDialog = "reboot" | "saveConfig" | "import" | "restoreDefaults" | null;
+
+type ImportEntry = {
+  param: ParameterInfo;
+  values: XvfValue[];
 };
+
+type ConfigPreset = {
+  version?: unknown;
+  parameters?: unknown;
+};
+
+const CATEGORIES: ConfigCategory[] = ["audio", "aec", "postproc", "ledGpio", "system", "other"];
+
+const CATEGORY_RESID: Partial<Record<ConfigCategory, number>> = {
+  audio: RESID.AUDIO_MGR,
+  aec: RESID.AEC,
+  postproc: RESID.PP,
+  ledGpio: RESID.GPO_LED,
+  system: RESID.APP,
+};
+
+const SKIP_ON_IMPORT = new Set(["SAVE_CONFIGURATION", "REBOOT", "CLEAR_CONFIGURATION"]);
+
+interface PendingWrite {
+  param: ParameterInfo;
+  values: XvfValue[];
+}
 
 export function ConfigPanel({ xvf }: Props) {
   const { t } = useTranslation();
   const { commands, current, read, write, readMany } = xvf;
+  const [activeCategory, setActiveCategory] = useState<ConfigCategory>("audio");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<ParameterInfo | null>(null);
-  const [values, setValues] = useState<string[]>([]);
-  const [busy, setBusy] = useState<"read" | "write" | "export" | "import" | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<
-    "reboot" | "saveConfig" | "import" | "restoreDefaults" | null
-  >(null);
-  const [pendingImportData, setPendingImportData] = useState<Record<string, number[]> | null>(null);
+  const [currentValues, setCurrentValues] = useState<Record<string, XvfValue[]>>({});
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [loadingCategory, setLoadingCategory] = useState<ConfigCategory | null>(null);
+  const [busy, setBusy] = useState<BusyState>(null);
+  const [busyParam, setBusyParam] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>(null);
+  const [pendingWrite, setPendingWrite] = useState<PendingWrite | null>(null);
+  const [pendingImportData, setPendingImportData] = useState<ImportEntry[] | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return commands;
-    return commands.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
-    );
-  }, [commands, query]);
-
-  const grouped = useMemo(() => {
-    const groups = new Map<string, ParameterInfo[]>();
-    for (const c of filtered) {
-      const key = residKey(c.resid);
-      const list = groups.get(key) ?? [];
-      list.push(c);
-      groups.set(key, list);
+  const commandsByCategory = useMemo(() => {
+    const map = new Map<ConfigCategory, ParameterInfo[]>();
+    for (const category of CATEGORIES) {
+      map.set(category, []);
     }
-    return Array.from(groups.entries());
-  }, [filtered]);
 
-  const select = (cmd: ParameterInfo) => {
-    setSelected(cmd);
-    setValues(new Array(cmd.length).fill(""));
-    setMessage(null);
-  };
+    for (const command of commands) {
+      map.get(categoryForResid(command.resid))?.push(command);
+    }
 
-  const doRead = async () => {
-    if (!selected) return;
-    setBusy("read");
-    setMessage(null);
-    try {
-      const res = await read(selected.name);
-      if (res) {
-        setValues(res.values.map((v) => (typeof v === "number" ? formatNumber(v, 6) : String(v))));
-        setMessage(t("xvf.config.readOk") ?? "Read OK");
-      } else {
-        setMessage(t("xvf.config.readFail") ?? "Read failed");
+    for (const category of CATEGORIES) {
+      map.get(category)?.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return map;
+  }, [commands]);
+
+  const activeParams = commandsByCategory.get(activeCategory) ?? [];
+
+  const filteredParams = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return activeParams;
+    return activeParams.filter(
+      (param) => param.name.toLowerCase().includes(q) || param.description.toLowerCase().includes(q)
+    );
+  }, [activeParams, query]);
+
+  useEffect(() => {
+    if (!current || activeParams.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    const readable = activeParams.filter((param) => param.access === "ro" || param.access === "rw");
+    if (readable.length === 0) {
+      return;
+    }
+
+    const loadCategory = async () => {
+      setLoadingCategory(activeCategory);
+      const results = await readMany(readable.map((param) => param.name));
+      if (cancelled) {
+        return;
       }
+
+      setCurrentValues((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(results).map(([name, result]) => [name, result.values])
+        ),
+      }));
+      setDraftValues((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(results).map(([name, result]) => [name, valuesToDraft(result.values)])
+        ),
+      }));
+      setLoadingCategory(null);
+    };
+
+    void loadCategory();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCategory, activeParams, current, readMany]);
+
+  const readParam = async (param: ParameterInfo) => {
+    if (param.access === "wo") {
+      return;
+    }
+
+    setBusy("read");
+    setBusyParam(param.name);
+    try {
+      const result = await read(param.name);
+      if (!result) {
+        toast.error(t("xvf.config.readFail"));
+        return;
+      }
+
+      setCurrentValues((prev) => ({ ...prev, [param.name]: result.values }));
+      setDraftValues((prev) => ({ ...prev, [param.name]: valuesToDraft(result.values) }));
+      toast.success(t("xvf.config.readOk"));
     } finally {
       setBusy(null);
+      setBusyParam(null);
     }
   };
 
-  const doWrite = async () => {
-    if (!selected) return;
+  const writeParam = async (param: ParameterInfo) => {
+    if (param.access === "ro") {
+      return;
+    }
 
-    // Check for dangerous operations and show confirmation first
-    if (selected.name === "SAVE_CONFIGURATION") {
+    let parsed: XvfValue[];
+    try {
+      parsed = parseDraft(param, draftValues[param.name] ?? "");
+    } catch (error) {
+      toast.error((error as Error).message);
+      return;
+    }
+
+    if (param.name === "SAVE_CONFIGURATION") {
       setConfirmDialog("saveConfig");
       return;
     }
-    if (selected.name === "REBOOT") {
+    if (param.name === "REBOOT") {
+      setPendingWrite({ param, values: parsed });
       setConfirmDialog("reboot");
       return;
     }
+    if (param.name === "CLEAR_CONFIGURATION") {
+      setPendingWrite({ param, values: parsed });
+      setConfirmDialog("restoreDefaults");
+      return;
+    }
 
-    await executeWrite();
+    await executeWrite(param, parsed);
   };
 
-  const executeWrite = async () => {
-    if (!selected) return;
+  const executeWrite = async (param: ParameterInfo, values: XvfValue[]) => {
     setBusy("write");
-    setMessage(null);
+    setBusyParam(param.name);
     try {
-      const parsed = values.map((v, idx) => {
-        if (selected.kind === "char") return v;
-        const n = Number(v);
-        if (!Number.isFinite(n)) {
-          throw new Error(`Invalid value at index ${idx}`);
-        }
-        return n;
-      });
-      const ok = await write(selected.name, parsed);
-      setMessage(
-        ok ? (t("xvf.config.writeOk") ?? "Write OK") : (t("xvf.config.writeFail") ?? "Write failed")
-      );
-    } catch (e) {
-      setMessage((e as Error).message);
+      const ok = await write(param.name, values);
+      if (ok) {
+        setCurrentValues((prev) => ({ ...prev, [param.name]: values }));
+        toast.success(t("xvf.config.writeOk"));
+      } else {
+        toast.error(t("xvf.config.writeFail"));
+      }
     } finally {
       setBusy(null);
+      setBusyParam(null);
     }
   };
 
@@ -145,8 +217,21 @@ export function ConfigPanel({ xvf }: Props) {
       const ok = await write("SAVE_CONFIGURATION", [0]);
       if (ok) toast.success(t("xvf.config.saveToFlashOk"));
       else toast.error(t("xvf.config.writeFail"));
-    } catch (e) {
-      toast.error((e as Error).message);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const executeRestoreDefaults = async () => {
+    setBusy("write");
+    try {
+      const ok = await write("CLEAR_CONFIGURATION", [0]);
+      if (ok) toast.success(t("xvf.config.restoreDefaultsOk"));
+      else toast.error(t("xvf.config.writeFail"));
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setBusy(null);
     }
@@ -154,49 +239,34 @@ export function ConfigPanel({ xvf }: Props) {
 
   const handleConfirmDangerous = () => {
     const dialog = confirmDialog;
+    const writeRequest = pendingWrite;
     setConfirmDialog(null);
+    setPendingWrite(null);
+
     if (dialog === "import") {
       void executeImport();
-    } else if (dialog === "restoreDefaults") {
-      void executeRestoreDefaults();
     } else if (dialog === "saveConfig") {
       void executeSaveToFlash();
-    } else {
-      void executeWrite();
-    }
-  };
-
-  const doRestoreDefaults = () => {
-    setConfirmDialog("restoreDefaults");
-  };
-
-  const executeRestoreDefaults = async () => {
-    setBusy("write");
-    try {
-      const ok = await write("CLEAR_CONFIGURATION", [0]);
-      if (ok) {
-        toast.success(t("xvf.config.restoreDefaultsOk"));
-      } else {
-        toast.error(t("xvf.config.writeFail"));
-      }
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(null);
+    } else if (dialog === "restoreDefaults") {
+      if (writeRequest) void executeWrite(writeRequest.param, writeRequest.values);
+      else void executeRestoreDefaults();
+    } else if (dialog === "reboot" && writeRequest) {
+      void executeWrite(writeRequest.param, writeRequest.values);
     }
   };
 
   const doExport = async () => {
-    const readableParams = commands.filter((c) => c.access === "ro" || c.access === "rw");
-    if (readableParams.length === 0) return;
+    const writableParams = commands.filter((param) => param.access === "rw");
+    if (writableParams.length === 0) return;
 
     setBusy("export");
     try {
-      const names = readableParams.map((c) => c.name);
-      const results = await readMany(names);
-      const parameters: Record<string, (number | string)[]> = {};
-      for (const [name, result] of Object.entries(results)) {
-        parameters[name] = result.values;
+      const results = await readMany(writableParams.map((param) => param.name));
+      const parameters: Record<string, XvfValue[]> = {};
+      for (const param of writableParams) {
+        const result = results[param.name];
+        if (!result || result.values.length === 0) continue;
+        parameters[param.name] = result.values;
       }
 
       const appVersion = await getVersion();
@@ -220,8 +290,8 @@ export function ConfigPanel({ xvf }: Props) {
         await writeTextFile(path, JSON.stringify(preset, null, 2));
         toast.success(t("xvf.config.exportOk"));
       }
-    } catch (e) {
-      toast.error((e as Error).message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setBusy(null);
     }
@@ -240,63 +310,84 @@ export function ConfigPanel({ xvf }: Props) {
         setBusy(null);
         return;
       }
+
       const text = await readTextFile(path);
-      const preset: { parameters?: Record<string, number[]> } = JSON.parse(text);
-      if (!preset.parameters || typeof preset.parameters !== "object") {
+      const preset = JSON.parse(text) as ConfigPreset;
+      if (!isConfigPreset(preset) || preset.version !== "1.0") {
         toast.error(t("xvf.config.importInvalid"));
         setBusy(null);
         return;
       }
-      setPendingImportData(preset.parameters);
+
+      const validation = validateImportEntries(preset.parameters, commands);
+      if (validation.entries.length === 0) {
+        toast.error(t("xvf.config.importInvalid"));
+        if (validation.errors.length > 0) {
+          toast.error(
+            t("xvf.config.importFailedParameters", { names: summarizeNames(validation.errors) })
+          );
+        }
+        setBusy(null);
+        return;
+      }
+
+      if (validation.errors.length > 0) {
+        toast.warning(t("xvf.config.importSkipped", { count: validation.errors.length }));
+        toast.error(
+          t("xvf.config.importFailedParameters", { names: summarizeNames(validation.errors) })
+        );
+      }
+
+      setPendingImportData(validation.entries);
       setConfirmDialog("import");
-    } catch (e) {
-      toast.error((e as Error).message);
+    } catch (error) {
+      toast.error((error as Error).message);
       setBusy(null);
     }
   };
 
   const executeImport = async () => {
     if (!pendingImportData) return;
-    const SKIP_ON_IMPORT = new Set(["SAVE_CONFIGURATION", "REBOOT", "CLEAR_CONFIGURATION"]);
+
     try {
-      const writableParams = commands.filter((c) => c.access === "wo" || c.access === "rw");
-      const writableNames = new Set(writableParams.map((c) => c.name));
       let written = 0;
       let failed = 0;
-      for (const [name, vals] of Object.entries(pendingImportData)) {
-        if (!writableNames.has(name) || SKIP_ON_IMPORT.has(name)) continue;
-        const ok = await write(name, vals);
-        if (ok) written++;
-        else failed++;
+      const failedNames: string[] = [];
+
+      for (const entry of pendingImportData) {
+        const ok = await write(entry.param.name, entry.values);
+        if (ok) written += 1;
+        else {
+          failed += 1;
+          failedNames.push(entry.param.name);
+        }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+
+      if (failedNames.length > 0) {
+        toast.error(t("xvf.config.importFailedParameters", { names: summarizeNames(failedNames) }));
+      }
+
       if (failed > 0 && written === 0) {
         toast.error(t("xvf.config.importDone", { written, failed }));
       } else {
         toast.success(t("xvf.config.importDone", { written, failed }));
       }
-    } catch (e) {
-      toast.error((e as Error).message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setPendingImportData(null);
       setBusy(null);
     }
   };
 
-  const readOnly = selected?.access === "ro";
-  const writeOnly = selected?.access === "wo";
+  const categoryIsLoading = loadingCategory === activeCategory;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-      <Card>
-        <CardHeader className="space-y-3">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <SlidersHorizontal className="text-primary h-5 w-5" aria-hidden />
-            {t("xvf.config.title")}
-            <Badge variant="outline" className="ml-auto">
-              {commands.length}
-            </Badge>
-          </CardTitle>
+    <Card className="min-h-0 flex-1 gap-0 overflow-hidden py-0">
+      <CardHeader className="gap-3 border-b py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-base font-semibold">{t("xvf.config.title")}</CardTitle>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -304,7 +395,7 @@ export function ConfigPanel({ xvf }: Props) {
               onClick={doExport}
               disabled={!current || busy !== null}
             >
-              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              <Download className="h-3.5 w-3.5" aria-hidden />
               {t("xvf.config.export")}
             </Button>
             <Button
@@ -313,18 +404,8 @@ export function ConfigPanel({ xvf }: Props) {
               onClick={doImport}
               disabled={!current || busy !== null}
             >
-              <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              <Upload className="h-3.5 w-3.5" aria-hidden />
               {t("xvf.config.import")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive border-destructive/40 hover:bg-destructive/10"
-              onClick={doRestoreDefaults}
-              disabled={!current || busy !== null}
-            >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              {t("xvf.config.restoreDefaults")}
             </Button>
             <Button
               size="sm"
@@ -332,138 +413,163 @@ export function ConfigPanel({ xvf }: Props) {
               onClick={() => setConfirmDialog("saveConfig")}
               disabled={!current || busy !== null}
             >
-              <Save className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              <Save className="h-3.5 w-3.5" aria-hidden />
               {t("xvf.config.saveToFlash")}
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive border-destructive/40 hover:bg-destructive/10"
+              onClick={() => setConfirmDialog("restoreDefaults")}
+              disabled={!current || busy !== null}
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              {t("xvf.config.restoreDefaults")}
+            </Button>
           </div>
-          <div className="relative">
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs
+            value={activeCategory}
+            onValueChange={(value) => setActiveCategory(value as ConfigCategory)}
+          >
+            <TabsList className="flex h-auto flex-wrap justify-start">
+              {CATEGORIES.map((category) => (
+                <TabsTrigger key={category} value={category} className="gap-2">
+                  {t(`xvf.config.categories.${category}`)}
+                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                    {commandsByCategory.get(category)?.length ?? 0}
+                  </Badge>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          <div className="relative min-w-56 flex-1 md:max-w-xs">
             <Search
               className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4"
               aria-hidden
             />
             <Input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("xvf.config.search") ?? "Search"}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("xvf.config.search")}
               className="pl-8"
-              aria-label={t("xvf.config.search") ?? "Search"}
+              aria-label={t("xvf.config.search")}
             />
           </div>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
-          <ScrollArea className="h-[480px]">
-            <ul className="flex flex-col">
-              {grouped.map(([group, items]) => (
-                <li key={group} className="flex flex-col">
-                  <div className="bg-muted/60 text-muted-foreground sticky top-0 px-4 py-1.5 text-[11px] font-semibold tracking-wide uppercase">
-                    {GROUP_LABELS[group] ?? group}
-                  </div>
-                  <ul>
-                    {items.map((cmd) => (
-                      <li key={cmd.name}>
-                        <button
-                          type="button"
-                          onClick={() => select(cmd)}
-                          className={`hover:bg-accent/40 flex w-full flex-col items-start gap-0.5 border-b px-4 py-2.5 text-left transition-colors ${
-                            selected?.name === cmd.name ? "bg-accent/60" : ""
-                          }`}
-                        >
-                          <div className="flex w-full items-center justify-between">
-                            <span className="font-mono text-xs font-semibold">{cmd.name}</span>
-                            <Badge
-                              variant={cmd.access === "ro" ? "outline" : "secondary"}
-                              className="text-[10px] uppercase"
-                            >
-                              {cmd.access}
-                            </Badge>
-                          </div>
-                          <span className="text-muted-foreground line-clamp-1 text-xs">
-                            {cmd.description}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-              {filtered.length === 0 && (
-                <li className="text-muted-foreground p-6 text-center text-sm">
-                  {t("xvf.config.empty")}
-                </li>
-              )}
-            </ul>
-          </ScrollArea>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-base font-semibold">
-            <span>{selected ? selected.name : t("xvf.config.selectPrompt")}</span>
-            {selected && (
-              <Badge variant="outline" className="font-mono text-xs">
-                resid=0x{selected.resid.toString(16).padStart(2, "0").toUpperCase()} cmdid=0x
-                {selected.cmdid.toString(16).padStart(2, "0").toUpperCase()} len={selected.length}{" "}
-                {selected.kind}
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {!selected ? (
-            <p className="text-muted-foreground text-sm">{t("xvf.config.selectHint")}</p>
-          ) : (
-            <>
-              <p className="text-muted-foreground text-sm">{selected.description}</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {values.map((v, idx) => (
-                  <Input
-                    key={idx}
-                    value={v}
-                    onChange={(e) => {
-                      const next = [...values];
-                      next[idx] = e.target.value;
-                      setValues(next);
-                    }}
-                    placeholder={`#${idx}`}
-                    aria-label={`${selected.name} value ${idx}`}
-                    disabled={!current}
-                  />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={doRead}
-                  disabled={!current || writeOnly || busy !== null}
-                >
-                  <RefreshCcw
-                    className={`mr-2 h-4 w-4 ${busy === "read" ? "animate-spin" : ""}`}
-                    aria-hidden
-                  />
-                  {t("xvf.config.read")}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={doWrite}
-                  disabled={!current || readOnly || busy !== null}
-                >
-                  <Save className="mr-2 h-4 w-4" aria-hidden />
-                  {t("xvf.config.write")}
-                </Button>
-              </div>
-              {message && <p className="text-muted-foreground text-xs">{message}</p>}
-            </>
+          {categoryIsLoading && (
+            <span className="text-muted-foreground flex items-center gap-2 text-xs">
+              <RefreshCcw className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              {t("xvf.config.loadingCategory")}
+            </span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CardHeader>
+
+      <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+        <div className="min-w-[960px]">
+          <div className="bg-muted/50 text-muted-foreground grid grid-cols-[220px_190px_240px_110px_minmax(260px,1fr)] border-b px-4 py-2 text-xs font-medium">
+            <span>{t("xvf.config.columns.name")}</span>
+            <span>{t("xvf.config.columns.currentValue")}</span>
+            <span>{t("xvf.config.columns.newValue")}</span>
+            <span>{t("xvf.config.columns.actions")}</span>
+            <span>{t("xvf.config.columns.description")}</span>
+          </div>
+
+          {filteredParams.map((param) => {
+            const isReadOnly = param.access === "ro";
+            const isWriteOnly = param.access === "wo";
+            const rowBusy = busyParam === param.name;
+            const currentText = isWriteOnly
+              ? t("xvf.config.writeOnly")
+              : formatValue(param, currentValues[param.name] ?? null);
+
+            return (
+              <div
+                key={param.name}
+                className="hover:bg-muted/30 grid grid-cols-[220px_190px_240px_110px_minmax(260px,1fr)] items-center gap-3 border-b px-4 py-2.5 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-xs font-semibold" title={param.name}>
+                    {param.name}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <Badge
+                      variant={isReadOnly ? "outline" : "secondary"}
+                      className="text-[10px] uppercase"
+                    >
+                      {param.access}
+                    </Badge>
+                    <span className="text-muted-foreground text-[10px]">
+                      {param.kind} x{param.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className="text-muted-foreground truncate font-mono text-xs"
+                  title={currentText}
+                >
+                  {currentText}
+                </div>
+
+                <Input
+                  value={draftValues[param.name] ?? ""}
+                  onChange={(event) =>
+                    setDraftValues((prev) => ({ ...prev, [param.name]: event.target.value }))
+                  }
+                  placeholder={isReadOnly ? t("xvf.config.readOnly") : t("xvf.config.newValue")}
+                  disabled={!current || isReadOnly}
+                  aria-label={`${param.name} ${t("xvf.config.newValue")}`}
+                  className="h-8 font-mono text-xs"
+                />
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="icon-xs"
+                    variant="outline"
+                    onClick={() => void readParam(param)}
+                    disabled={!current || isWriteOnly || busy !== null}
+                    aria-label={`${t("xvf.config.read")} ${param.name}`}
+                  >
+                    <RefreshCcw
+                      className={cn("h-3 w-3", rowBusy && busy === "read" && "animate-spin")}
+                    />
+                  </Button>
+                  <Button
+                    size="icon-xs"
+                    onClick={() => void writeParam(param)}
+                    disabled={!current || isReadOnly || busy !== null}
+                    aria-label={`${t("xvf.config.write")} ${param.name}`}
+                  >
+                    <Save className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                <div className="text-muted-foreground truncate text-xs" title={param.description}>
+                  {param.description}
+                </div>
+              </div>
+            );
+          })}
+
+          {filteredParams.length === 0 && (
+            <div className="text-muted-foreground p-8 text-center text-sm">
+              {t("xvf.config.empty")}
+            </div>
+          )}
+        </div>
+      </CardContent>
 
       <AlertDialog
         open={confirmDialog !== null}
         onOpenChange={(open) => {
           if (!open) {
             setConfirmDialog(null);
+            setPendingWrite(null);
             if (confirmDialog === "import") {
               setPendingImportData(null);
               setBusy(null);
@@ -474,22 +580,10 @@ export function ConfigPanel({ xvf }: Props) {
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-medium">
-              {confirmDialog === "reboot"
-                ? t("xvf.confirm.reboot.title")
-                : confirmDialog === "import"
-                  ? t("xvf.confirm.import.title")
-                  : confirmDialog === "restoreDefaults"
-                    ? t("xvf.confirm.restoreDefaults.title")
-                    : t("xvf.confirm.saveConfig.title")}
+              {getConfirmTitle(confirmDialog, t)}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground/80 leading-relaxed">
-              {confirmDialog === "reboot"
-                ? t("xvf.confirm.reboot.description")
-                : confirmDialog === "import"
-                  ? t("xvf.confirm.import.description")
-                  : confirmDialog === "restoreDefaults"
-                    ? t("xvf.confirm.restoreDefaults.description")
-                    : t("xvf.confirm.saveConfig.description")}
+              {getConfirmDescription(confirmDialog, t)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -503,17 +597,141 @@ export function ConfigPanel({ xvf }: Props) {
               onClick={handleConfirmDangerous}
               className="font-normal"
             >
-              {confirmDialog === "reboot"
-                ? t("xvf.confirm.reboot.confirm")
-                : confirmDialog === "import"
-                  ? t("xvf.confirm.import.confirm")
-                  : confirmDialog === "restoreDefaults"
-                    ? t("xvf.confirm.restoreDefaults.confirm")
-                    : t("xvf.confirm.saveConfig.confirm")}
+              {getConfirmAction(confirmDialog, t)}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
+}
+
+function categoryForResid(resid: number): ConfigCategory {
+  switch (resid) {
+    case CATEGORY_RESID.audio:
+      return "audio";
+    case CATEGORY_RESID.aec:
+      return "aec";
+    case CATEGORY_RESID.postproc:
+      return "postproc";
+    case CATEGORY_RESID.ledGpio:
+      return "ledGpio";
+    case CATEGORY_RESID.system:
+      return "system";
+    default:
+      return "other";
+  }
+}
+
+function valuesToDraft(values: XvfValue[]): string {
+  return values.map((value) => String(value)).join(", ");
+}
+
+function parseDraft(param: ParameterInfo, draft: string): XvfValue[] {
+  if (param.kind === "char") {
+    return [draft];
+  }
+
+  const parts = draft
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.length === 0) {
+    throw new Error(`Missing value for ${param.name}`);
+  }
+
+  return parts.map((part, index) => {
+    const value = Number(part);
+    if (!Number.isFinite(value)) {
+      throw new Error(`Invalid value at index ${index} for ${param.name}`);
+    }
+    return value;
+  });
+}
+
+function isConfigPreset(
+  value: ConfigPreset
+): value is { version: string; parameters: Record<string, unknown> } {
+  return (
+    typeof value.version === "string" &&
+    value.parameters != null &&
+    typeof value.parameters === "object" &&
+    !Array.isArray(value.parameters)
+  );
+}
+
+function validateImportEntries(
+  parameters: Record<string, unknown>,
+  commands: ParameterInfo[]
+): { entries: ImportEntry[]; errors: string[] } {
+  const writable = new Map(
+    commands
+      .filter((param) => param.access === "rw" && !SKIP_ON_IMPORT.has(param.name))
+      .map((param) => [param.name, param])
+  );
+  const entries: ImportEntry[] = [];
+  const errors: string[] = [];
+
+  for (const [name, rawValues] of Object.entries(parameters)) {
+    const param = writable.get(name);
+    if (!param) {
+      errors.push(name);
+      continue;
+    }
+    if (!Array.isArray(rawValues) || rawValues.length !== param.length) {
+      errors.push(name);
+      continue;
+    }
+
+    const values = normalizeImportedValues(param, rawValues);
+    if (!values) {
+      errors.push(name);
+      continue;
+    }
+    entries.push({ param, values });
+  }
+
+  return { entries, errors };
+}
+
+function normalizeImportedValues(param: ParameterInfo, values: unknown[]): XvfValue[] | null {
+  if (param.kind === "char") {
+    return values.every((value) => typeof value === "string") ? (values as string[]) : null;
+  }
+
+  const normalized: XvfValue[] = [];
+  for (const value of values) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return null;
+    }
+    normalized.push(value);
+  }
+  return normalized;
+}
+
+function summarizeNames(names: string[]): string {
+  const preview = names.slice(0, 6).join(", ");
+  return names.length > 6 ? `${preview}, +${names.length - 6}` : preview;
+}
+
+function getConfirmTitle(confirmDialog: ConfirmDialog, t: (key: string) => string): string {
+  if (confirmDialog === "reboot") return t("xvf.confirm.reboot.title");
+  if (confirmDialog === "import") return t("xvf.confirm.import.title");
+  if (confirmDialog === "restoreDefaults") return t("xvf.confirm.restoreDefaults.title");
+  return t("xvf.confirm.saveConfig.title");
+}
+
+function getConfirmDescription(confirmDialog: ConfirmDialog, t: (key: string) => string): string {
+  if (confirmDialog === "reboot") return t("xvf.confirm.reboot.description");
+  if (confirmDialog === "import") return t("xvf.confirm.import.description");
+  if (confirmDialog === "restoreDefaults") return t("xvf.confirm.restoreDefaults.description");
+  return t("xvf.confirm.saveConfig.description");
+}
+
+function getConfirmAction(confirmDialog: ConfirmDialog, t: (key: string) => string): string {
+  if (confirmDialog === "reboot") return t("xvf.confirm.reboot.confirm");
+  if (confirmDialog === "import") return t("xvf.confirm.import.confirm");
+  if (confirmDialog === "restoreDefaults") return t("xvf.confirm.restoreDefaults.confirm");
+  return t("xvf.confirm.saveConfig.confirm");
 }

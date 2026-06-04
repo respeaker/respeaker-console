@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, Pause, Play } from "lucide-react";
 import type { UseXvfResult } from "@/hooks/use-xvf";
@@ -37,7 +37,7 @@ const MAX_SAMPLES = 240;
 
 export function MonitorPanel({ xvf }: Props) {
   const { t } = useTranslation();
-  const { current, readMany } = xvf;
+  const { arrayType, current, readMany } = xvf;
   const [running, setRunning] = useState(true);
   const [intervalMs, setIntervalMs] = useState(100);
   const [latest, setLatest] = useState<Sample | null>(null);
@@ -45,44 +45,7 @@ export function MonitorPanel({ xvf }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const samplesRef = useRef<Sample[]>([]);
 
-  useEffect(() => {
-    if (!current || !running) return;
-    let alive = true;
-    let timer: number | undefined;
-    const tick = async () => {
-      const out = await readMany([
-        "DOA_VALUE",
-        "AEC_RT60",
-        "AEC_SPENERGY_VALUES",
-        "AEC_AECCONVERGED",
-      ]);
-      if (!alive) return;
-      const doaValues = out.DOA_VALUE?.values ?? [];
-      const rt60Values = out.AEC_RT60?.values ?? [];
-      const energyValues = out.AEC_SPENERGY_VALUES?.values ?? [];
-      const conv = out.AEC_AECCONVERGED?.values?.[0];
-
-      const sample: Sample = {
-        t: Date.now(),
-        doaAngle: Number(doaValues[0] ?? 0),
-        vad: Number(doaValues[1] ?? 0),
-        rt60: Number(rt60Values[0] ?? 0),
-        energy: energyValues.map((v) => Number(v)),
-      };
-      samplesRef.current = [...samplesRef.current.slice(-(MAX_SAMPLES - 1)), sample];
-      setLatest(sample);
-      setConverged(typeof conv === "number" ? conv : null);
-      drawChart();
-      if (alive) timer = window.setTimeout(() => void tick(), intervalMs);
-    };
-    void tick();
-    return () => {
-      alive = false;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [current, running, intervalMs, readMany]);
-
-  const drawChart = () => {
+  const drawChart = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -130,7 +93,48 @@ export function MonitorPanel({ xvf }: Props) {
     drawSeries((s) => Math.max(0, ...(s.energy.length ? s.energy : [0])), "#0ea5e9", 0, 1);
     // VAD as a step at top.
     drawSeries((s) => s.vad, "#22c55e", 0, 1);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!current || !running) return;
+    let alive = true;
+    let timer: number | undefined;
+    const tick = async () => {
+      const out = await readMany([
+        "DOA_VALUE",
+        "AEC_RT60",
+        "AEC_SPENERGY_VALUES",
+        "AEC_AECCONVERGED",
+      ]);
+      if (!alive) return;
+      const doaValues = out.DOA_VALUE?.values ?? [];
+      const rt60Values = out.AEC_RT60?.values ?? [];
+      const energyValues = out.AEC_SPENERGY_VALUES?.values ?? [];
+      const conv = out.AEC_AECCONVERGED?.values?.[0];
+
+      const sample: Sample = {
+        t: Date.now(),
+        doaAngle: Number(doaValues[0] ?? 0),
+        vad: Number(doaValues[1] ?? 0),
+        rt60: Number(rt60Values[0] ?? 0),
+        energy: energyValues.map((v) => Number(v)),
+      };
+      samplesRef.current.push(sample);
+      if (samplesRef.current.length > MAX_SAMPLES) {
+        samplesRef.current.splice(0, samplesRef.current.length - MAX_SAMPLES);
+      }
+      setLatest(sample);
+      const nextConverged = typeof conv === "number" ? conv : null;
+      setConverged((prev) => (prev === nextConverged ? prev : nextConverged));
+      drawChart();
+      if (alive) timer = window.setTimeout(() => void tick(), intervalMs);
+    };
+    void tick();
+    return () => {
+      alive = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [current, running, intervalMs, readMany, drawChart]);
 
   const hasEnergy = latest && latest.energy.length > 0;
   const peakEnergy = hasEnergy ? Math.max(...latest!.energy) : 0;
@@ -176,7 +180,7 @@ export function MonitorPanel({ xvf }: Props) {
       <CardContent className="flex flex-col gap-6">
         {latest && (
           <div className="flex justify-center border-b pb-6">
-            <DoaCompass angle={latest.doaAngle} vadActive={latest.vad > 0.5} />
+            <DoaCompass angle={latest.doaAngle} vadActive={latest.vad > 0.5} mode={arrayType} />
           </div>
         )}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -230,28 +234,21 @@ export function MonitorPanel({ xvf }: Props) {
           <canvas ref={canvasRef} className="h-full w-full" aria-label="waveform" />
         </div>
 
-        <div className="grid grid-cols-4 gap-2 text-xs">
-          {(latest?.energy ?? []).map((v, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-md border px-2 py-1.5">
-              <span className="text-muted-foreground">
-                {t("xvf.monitor.beam")} {i}
-              </span>
-              <div className="bg-muted relative ml-auto h-1.5 w-20 overflow-hidden rounded-full">
-                <div
-                  className="bg-primary absolute inset-y-0 left-0"
-                  style={{ width: `${Math.min(100, Math.max(0, v * 100))}%` }}
-                />
-              </div>
-              <span className="w-10 text-right tabular-nums">{formatNumber(v, 2)}</span>
-            </div>
-          ))}
-        </div>
+        <BeamEnergyList energy={latest?.energy ?? []} beamLabel={t("xvf.monitor.beam")} />
       </CardContent>
     </Card>
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string; accent?: "primary" }) {
+const StatCard = memo(function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "primary";
+}) {
   return (
     <div className="border p-3">
       <div className="text-muted-foreground/60 text-[10px] font-medium tracking-widest uppercase">
@@ -264,4 +261,45 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
       </div>
     </div>
   );
-}
+});
+
+const BeamEnergyList = memo(function BeamEnergyList({
+  energy,
+  beamLabel,
+}: {
+  energy: number[];
+  beamLabel: string;
+}) {
+  return (
+    <div className="grid grid-cols-4 gap-2 text-xs">
+      {energy.map((value, index) => (
+        <BeamEnergyBar key={index} value={value} index={index} beamLabel={beamLabel} />
+      ))}
+    </div>
+  );
+});
+
+const BeamEnergyBar = memo(function BeamEnergyBar({
+  value,
+  index,
+  beamLabel,
+}: {
+  value: number;
+  index: number;
+  beamLabel: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border px-2 py-1.5">
+      <span className="text-muted-foreground">
+        {beamLabel} {index}
+      </span>
+      <div className="bg-muted relative ml-auto h-1.5 w-20 overflow-hidden rounded-full">
+        <div
+          className="bg-primary absolute inset-y-0 left-0"
+          style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }}
+        />
+      </div>
+      <span className="w-10 text-right tabular-nums">{formatNumber(value, 2)}</span>
+    </div>
+  );
+});
