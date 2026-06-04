@@ -34,7 +34,44 @@
       "disconnect": "Disconnect",
       "reboot": "Reboot",
       "unknownProduct": "Unknown device",
-      "serial": "Serial"
+      "serial": "Serial",
+      "firmware": {
+        "title": "Firmware Flashing",
+        "description": "Update firmware with dfu-util after placing the device in DFU mode.",
+        "openWizard": "Flash Firmware",
+        "warning": "Firmware flashing can make the device unusable if interrupted. Use the correct .bin file and keep USB power stable.",
+        "dialogDescription": "Follow the steps carefully before writing firmware to the device.",
+        "step": "Step {{step}}",
+        "steps": {
+          "1": {
+            "title": "Safe mode"
+          },
+          "2": {
+            "title": "Verify dfu-util"
+          },
+          "3": {
+            "title": "Select and flash"
+          }
+        },
+        "safeModeWarning": "Disconnect the normal device connection before entering DFU mode. Do not unplug the device while flashing.",
+        "instructions": {
+          "disconnect": "Disconnect the device from the app and unplug USB if required by your hardware revision.",
+          "enterDfu": "Put the board into DFU/safe mode according to the device documentation.",
+          "reconnect": "Reconnect USB and wait for the operating system to enumerate the DFU device."
+        },
+        "checkDfu": "Check dfu-util",
+        "dfuReady": "dfu-util is ready",
+        "dfuMissing": "dfu-util is not available",
+        "executable": "Executable",
+        "binFile": "Firmware image",
+        "selectFile": "Select .bin File",
+        "selectedFile": "Selected file",
+        "noFile": "No firmware file selected",
+        "flash": "Flash Firmware",
+        "noOutput": "No flashing output yet",
+        "back": "Back",
+        "next": "Next"
+      }
     },
     "audio": {
       "title": "Audio Pipeline",
@@ -44,7 +81,22 @@
       "aecBypass": "SHF bypass (AEC off)",
       "agcOn": "Automatic gain control",
       "echoOn": "Echo suppression",
-      "limiterOn": "Output limiter"
+      "limiterOn": "Output limiter",
+      "agcMaxGain": "AGC max gain",
+      "mgScale": "Microphone gate scale",
+      "minNn": "Non-stationary noise floor",
+      "minNs": "Stationary noise floor",
+      "nlAtten": "Non-linear attenuation",
+      "dtSensitive": "Double-talk sensitivity",
+      "fminSpeindex": "Minimum speech frequency",
+      "outputLeft": "Left output route",
+      "outputRight": "Right output route",
+      "groups": {
+        "noiseSuppression": "Noise suppression",
+        "gain": "Gain",
+        "detection": "Detection",
+        "output": "Output"
+      }
     },
     "monitor": {
       "title": "Live Telemetry",
@@ -109,7 +161,28 @@
       "importTitle": "Import Configuration",
       "exportOk": "Configuration exported successfully",
       "importInvalid": "Invalid preset file format",
-      "importDone": "Import complete: {{written}} written, {{failed}} failed"
+      "importSkipped": "Skipped {{count}} invalid parameter(s)",
+      "importFailedParameters": "Failed parameters: {{names}}",
+      "importDone": "Import complete: {{written}} written, {{failed}} failed",
+      "loadingCategory": "Reading category...",
+      "newValue": "New value",
+      "readOnly": "Read only",
+      "writeOnly": "Write only",
+      "categories": {
+        "audio": "Audio",
+        "aec": "AEC",
+        "postproc": "Postproc",
+        "ledGpio": "LED/GPIO",
+        "system": "System",
+        "other": "Other"
+      },
+      "columns": {
+        "name": "Parameter",
+        "currentValue": "Current value",
+        "newValue": "New value",
+        "actions": "Actions",
+        "description": "Description"
+      }
     },
     "logs": {
       "title": "Event Log",
@@ -179,6 +252,22 @@
     "title": "Settings",
     "button": "Settings",
     "close": "Close",
+    "description": "App preferences, shortcuts, and version information",
+    "nav": {
+      "general": "General",
+      "shortcuts": "Shortcuts",
+      "about": "About"
+    },
+    "sidebar": {
+      "expand": "Expand sidebar",
+      "collapse": "Collapse sidebar"
+    },
+    "general": {
+      "title": "General",
+      "description": "Configure app appearance and language",
+      "themeDescription": "Choose how the app should choose colors.",
+      "languageDescription": "Switch the interface language."
+    },
     "appearance": {
       "title": "Appearance",
       "description": "Customize the appearance and language of the app",
@@ -196,6 +285,11 @@
       "showMainDesc": "Use shortcut to quickly show the main window",
       "setSuccess": "Shortcut set to {{shortcut}}!",
       "cleared": "Shortcut cleared!"
+    },
+    "about": {
+      "description": "Version details, project links, and update checks",
+      "versionInfo": "Version information",
+      "versionDescription": "Installed app and framework versions"
     }
   },
   "releaseVersion": {
