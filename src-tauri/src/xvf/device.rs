@@ -13,7 +13,8 @@ use rusb::{
 
 use super::parameters::{response_length, Parameter};
 
-static USB_CONTEXT: Lazy<Context> = Lazy::new(|| Context::new().expect("failed to create libusb context"));
+static USB_CONTEXT: Lazy<Context> =
+    Lazy::new(|| Context::new().expect("failed to create libusb context"));
 
 pub const DEFAULT_VID: u16 = 0x2886;
 pub const USB_TIMEOUT: Duration = Duration::from_millis(5000);
@@ -188,11 +189,17 @@ impl XvfDevice {
 
     // ----- Raw control transfers -----
 
-    fn control_out(&self, request: u8, value: u16, index: u16, data: &[u8]) -> Result<(), XvfError> {
+    fn control_out(
+        &self,
+        request: u8,
+        value: u16,
+        index: u16,
+        data: &[u8],
+    ) -> Result<(), XvfError> {
         let req_type = request_type(Direction::Out, RequestType::Vendor, Recipient::Device);
-        let written = self
-            .handle
-            .write_control(req_type, request, value, index, data, USB_TIMEOUT)?;
+        let written =
+            self.handle
+                .write_control(req_type, request, value, index, data, USB_TIMEOUT)?;
         if written != data.len() {
             log::warn!(
                 "[xvf] control_out short write: wrote {} of {} bytes",
@@ -203,12 +210,18 @@ impl XvfDevice {
         Ok(())
     }
 
-    fn control_in(&self, request: u8, value: u16, index: u16, length: usize) -> Result<Vec<u8>, XvfError> {
+    fn control_in(
+        &self,
+        request: u8,
+        value: u16,
+        index: u16,
+        length: usize,
+    ) -> Result<Vec<u8>, XvfError> {
         let req_type = request_type(Direction::In, RequestType::Vendor, Recipient::Device);
         let mut buf = vec![0u8; length];
-        let read = self
-            .handle
-            .read_control(req_type, request, value, index, &mut buf, USB_TIMEOUT)?;
+        let read =
+            self.handle
+                .read_control(req_type, request, value, index, &mut buf, USB_TIMEOUT)?;
         buf.truncate(read);
         Ok(buf)
     }
@@ -243,7 +256,11 @@ impl XvfDevice {
     }
 
     #[allow(dead_code)]
-    pub fn write_parameter_strbytes(&self, param: &Parameter, bytes: &[u8]) -> Result<(), XvfError> {
+    pub fn write_parameter_strbytes(
+        &self,
+        param: &Parameter,
+        bytes: &[u8],
+    ) -> Result<(), XvfError> {
         if !param.is_writable() {
             return Err(XvfError::ReadOnly(param.name.to_string()));
         }
@@ -317,7 +334,10 @@ fn encode_payload(param: &Parameter, values: &[f64]) -> Result<Vec<u8>, XvfError
         "uint8" => {
             for v in values {
                 if !(0.0..=u8::MAX as f64).contains(v) {
-                    return Err(XvfError::ValueRange { kind: "uint8", value: *v });
+                    return Err(XvfError::ValueRange {
+                        kind: "uint8",
+                        value: *v,
+                    });
                 }
                 out.push(*v as u8);
             }
@@ -325,7 +345,10 @@ fn encode_payload(param: &Parameter, values: &[f64]) -> Result<Vec<u8>, XvfError
         "uint16" => {
             for v in values {
                 if !(0.0..=u16::MAX as f64).contains(v) {
-                    return Err(XvfError::ValueRange { kind: "uint16", value: *v });
+                    return Err(XvfError::ValueRange {
+                        kind: "uint16",
+                        value: *v,
+                    });
                 }
                 out.extend_from_slice(&(*v as u16).to_le_bytes());
             }
@@ -333,7 +356,10 @@ fn encode_payload(param: &Parameter, values: &[f64]) -> Result<Vec<u8>, XvfError
         "uint32" => {
             for v in values {
                 if !(0.0..=u32::MAX as f64).contains(v) {
-                    return Err(XvfError::ValueRange { kind: "uint32", value: *v });
+                    return Err(XvfError::ValueRange {
+                        kind: "uint32",
+                        value: *v,
+                    });
                 }
                 out.extend_from_slice(&(*v as u32).to_le_bytes());
             }
@@ -341,7 +367,10 @@ fn encode_payload(param: &Parameter, values: &[f64]) -> Result<Vec<u8>, XvfError
         "int32" => {
             for v in values {
                 if !((i32::MIN as f64)..=(i32::MAX as f64)).contains(v) {
-                    return Err(XvfError::ValueRange { kind: "int32", value: *v });
+                    return Err(XvfError::ValueRange {
+                        kind: "int32",
+                        value: *v,
+                    });
                 }
                 out.extend_from_slice(&(*v as i32).to_le_bytes());
             }
@@ -385,21 +414,36 @@ fn decode_response(param: &Parameter, payload: &[u8]) -> Result<Vec<ReadValue>, 
         "uint32" => {
             for i in 0..count {
                 let o = i * 4;
-                let v = u32::from_le_bytes([payload[o], payload[o + 1], payload[o + 2], payload[o + 3]]);
+                let v = u32::from_le_bytes([
+                    payload[o],
+                    payload[o + 1],
+                    payload[o + 2],
+                    payload[o + 3],
+                ]);
                 out.push(ReadValue::U32(v));
             }
         }
         "int32" => {
             for i in 0..count {
                 let o = i * 4;
-                let v = i32::from_le_bytes([payload[o], payload[o + 1], payload[o + 2], payload[o + 3]]);
+                let v = i32::from_le_bytes([
+                    payload[o],
+                    payload[o + 1],
+                    payload[o + 2],
+                    payload[o + 3],
+                ]);
                 out.push(ReadValue::I32(v));
             }
         }
         "float" | "radians" => {
             for i in 0..count {
                 let o = i * 4;
-                let v = f32::from_le_bytes([payload[o], payload[o + 1], payload[o + 2], payload[o + 3]]);
+                let v = f32::from_le_bytes([
+                    payload[o],
+                    payload[o + 1],
+                    payload[o + 2],
+                    payload[o + 3],
+                ]);
                 out.push(ReadValue::Float(v));
             }
         }
