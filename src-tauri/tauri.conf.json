@@ -30,11 +30,11 @@
         "height": 760,
         "minWidth": 960,
         "minHeight": 640,
-        "decorations": false,
-        "transparent": true,
+        "decorations": true,
+        "transparent": false,
         "acceptFirstMouse": true,
         "center": true,
-        "shadow": false,
+        "shadow": true,
         "visible": false
       }
     ],

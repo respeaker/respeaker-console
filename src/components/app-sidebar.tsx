@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Lightbulb,
   ScrollText,
+  Settings,
   SlidersHorizontal,
   UsbIcon,
   Volume2,
@@ -12,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
-export type NavTab = "device" | "audio" | "monitor" | "led" | "config" | "logs";
+export type NavTab = "device" | "audio" | "monitor" | "led" | "config" | "logs" | "settings";
 
 const NAV_ITEMS: { id: NavTab; icon: typeof UsbIcon; labelKey: string }[] = [
   { id: "device", icon: UsbIcon, labelKey: "xvf.tabs.device" },
@@ -79,11 +80,27 @@ export function AppSidebar({ activeTab, onTabChange, className }: AppSidebarProp
         ))}
       </nav>
 
-      {/* Collapse toggle */}
-      <div className="border-border/40 border-t p-1.5">
+      <div className="border-border/40 space-y-1.5 border-t p-1.5">
         <button
+          type="button"
+          onClick={() => onTabChange("settings")}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+            "hover:bg-accent hover:text-accent-foreground",
+            activeTab === "settings" ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+            collapsed && "justify-center px-0"
+          )}
+          aria-label={t("settings.button")}
+        >
+          <Settings className="h-4 w-4 shrink-0" />
+          {!collapsed && <span className="truncate">{t("settings.button")}</span>}
+        </button>
+
+        <button
+          type="button"
           onClick={() => setCollapsed((c) => !c)}
           className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex w-full items-center justify-center rounded-md px-2.5 py-1.5 transition-colors"
+          aria-label={collapsed ? t("settings.sidebar.expand") : t("settings.sidebar.collapse")}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>

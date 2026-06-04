@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { WindowFrame } from "@/components/window-frame";
-import { MainTitleBar } from "@/components/main-title-bar";
+import { SettingsPanel } from "@/components/settings-panel";
 import { UpdaterDialog } from "@/components/updater-dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { AppSidebar, STORAGE_KEY_TAB, type NavTab } from "@/components/app-sidebar";
@@ -79,7 +79,6 @@ export default function HomePage() {
   return (
     <WindowFrame
       sidebar={<AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />}
-      titleBar={<MainTitleBar />}
       contentClassName="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6"
     >
       <Toaster />
@@ -114,6 +113,7 @@ export default function HomePage() {
           </Suspense>
         )}
         {activeTab === "logs" && <LogsPanel xvf={xvf} />}
+        {activeTab === "settings" && <SettingsPanel />}
       </div>
     </WindowFrame>
   );
