@@ -8,6 +8,8 @@
 import type {
   ConnectArgs,
   DeviceInfo,
+  DfuCheckResult,
+  DfuOutputEvent,
   LogEvent,
   ParameterInfo,
   ReadManyResult,
@@ -15,12 +17,14 @@ import type {
 } from "./types";
 
 type LogListener = (event: LogEvent) => void;
+type DfuOutputListener = (event: DfuOutputEvent) => void;
 
 const STATE: {
   devices: DeviceInfo[];
   current: DeviceInfo | null;
   values: Map<string, XvfValue[]>;
   listeners: Set<LogListener>;
+  dfuListeners: Set<DfuOutputListener>;
   doaTick: number;
 } = {
   devices: [
@@ -39,6 +43,7 @@ const STATE: {
   current: null,
   values: new Map<string, XvfValue[]>(),
   listeners: new Set<LogListener>(),
+  dfuListeners: new Set<DfuOutputListener>(),
   doaTick: 0,
 };
 
@@ -49,6 +54,15 @@ function emit(level: LogEvent["level"], message: string) {
     timestamp: new Date().toISOString(),
   };
   STATE.listeners.forEach((l) => l(event));
+}
+
+function emitDfu(stream: DfuOutputEvent["stream"], line: string) {
+  const event: DfuOutputEvent = {
+    stream,
+    line,
+    timestamp: new Date().toISOString(),
+  };
+  STATE.dfuListeners.forEach((l) => l(event));
 }
 
 function ensureValues(params: ParameterInfo[]) {
@@ -104,6 +118,11 @@ export function isMockEnv(): boolean {
 export function mockOnLog(listener: LogListener): () => void {
   STATE.listeners.add(listener);
   return () => STATE.listeners.delete(listener);
+}
+
+export function mockOnDfuOutput(listener: DfuOutputListener): () => void {
+  STATE.dfuListeners.add(listener);
+  return () => STATE.dfuListeners.delete(listener);
 }
 
 export async function mockListCommands(): Promise<ParameterInfo[]> {
@@ -226,4 +245,26 @@ export async function mockReboot(): Promise<void> {
   if (!STATE.current) throw new Error("No device is currently connected");
   emit("warn", "Mock: REBOOT sent, connection dropped");
   STATE.current = null;
+}
+
+export async function mockCheckDfuUtil(): Promise<DfuCheckResult> {
+  emit("info", "Mock: dfu-util is available");
+  return {
+    available: true,
+    executable: "dfu-util",
+    versionOutput: "dfu-util 0.11 (mock)",
+    listOutput: "Found DFU: [2886:0018] ver=0200, devnum=1, cfg=1, intf=0, path=mock",
+    hint: null,
+  };
+}
+
+export async function mockFlashFirmware(path: string): Promise<void> {
+  emit("warn", "Mock: firmware flashing started");
+  emitDfu("status", `Mock flashing ${path}`);
+  for (const line of ["Opening DFU device", "Erasing", "Downloading", "Resetting device"]) {
+    emitDfu("stdout", line);
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+  }
+  emitDfu("status", "Mock firmware flashing completed successfully");
+  emit("info", "Mock: firmware flashing completed");
 }

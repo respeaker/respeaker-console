@@ -36,6 +36,22 @@ export interface LogEvent {
   timestamp: string;
 }
 
+export type DfuOutputStream = "stdout" | "stderr" | "status";
+
+export interface DfuOutputEvent {
+  stream: DfuOutputStream;
+  line: string;
+  timestamp: string;
+}
+
+export interface DfuCheckResult {
+  available: boolean;
+  executable: string;
+  versionOutput: string;
+  listOutput: string;
+  hint: string | null;
+}
+
 export interface ReadManyResult {
   name: string;
   ok: boolean;

@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as xvf from "@/lib/xvf/client";
 import type {
   DeviceInfo,
+  DfuCheckResult,
+  DfuOutputEvent,
   LogEvent,
   LogLevel,
   ParameterInfo,
@@ -22,7 +24,15 @@ export interface LogEntry {
   message: string;
 }
 
+export interface DfuOutputEntry {
+  id: number;
+  ts: number;
+  stream: DfuOutputEvent["stream"];
+  line: string;
+}
+
 export type XvfSource = "mock" | "native";
+export type XvfArrayType = "circular" | "linear";
 
 export interface ReadResult {
   values: XvfValue[];
@@ -33,6 +43,7 @@ export interface UseXvfResult {
   devices: (DeviceInfo & { path: string })[];
   selectedPath: string | null;
   current: (DeviceInfo & { path: string }) | null;
+  arrayType: XvfArrayType;
   loading: boolean;
   error: string | null;
   refreshDevices: () => Promise<void>;
@@ -40,6 +51,8 @@ export interface UseXvfResult {
   connect: (path: string) => Promise<void>;
   disconnect: () => Promise<void>;
   reboot: () => Promise<void>;
+  checkDfuUtil: () => Promise<DfuCheckResult | null>;
+  flashFirmware: (path: string) => Promise<boolean>;
 
   // Parameter catalog
   commands: ParameterInfo[];
@@ -51,13 +64,16 @@ export interface UseXvfResult {
 
   // Logs
   logs: LogEntry[];
+  dfuOutputs: DfuOutputEntry[];
   clearLogs: () => void;
+  clearDfuOutputs: () => void;
 
   // Meta
   source: XvfSource;
 }
 
 const MAX_LOGS = 500;
+const MAX_DFU_OUTPUTS = 300;
 
 function devicePath(d: DeviceInfo): string {
   return `${d.bus}:${d.address}:${d.vid.toString(16)}:${d.pid.toString(16)}`;
@@ -71,13 +87,16 @@ export function useXvf(): UseXvfResult {
   const [devices, setDevices] = useState<(DeviceInfo & { path: string })[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [current, setCurrent] = useState<(DeviceInfo & { path: string }) | null>(null);
+  const [arrayType, setArrayType] = useState<XvfArrayType>("circular");
   const [commands, setCommands] = useState<ParameterInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [dfuOutputs, setDfuOutputs] = useState<DfuOutputEntry[]>([]);
 
   const source: XvfSource = useMemo(() => (xvf.isMockEnv() ? "mock" : "native"), []);
   const logIdRef = useRef(0);
+  const dfuOutputIdRef = useRef(0);
 
   const pushLog = useCallback((level: LogLevel, message: string, ts?: number) => {
     logIdRef.current += 1;
@@ -94,6 +113,22 @@ export function useXvf(): UseXvfResult {
   }, []);
 
   const clearLogs = useCallback(() => setLogs([]), []);
+  const clearDfuOutputs = useCallback(() => setDfuOutputs([]), []);
+
+  const pushDfuOutput = useCallback((event: DfuOutputEvent) => {
+    dfuOutputIdRef.current += 1;
+    const ts = Date.parse(event.timestamp);
+    const entry: DfuOutputEntry = {
+      id: dfuOutputIdRef.current,
+      ts: Number.isFinite(ts) ? ts : Date.now(),
+      stream: event.stream,
+      line: event.line,
+    };
+    setDfuOutputs((prev) => {
+      const next = [...prev, entry];
+      return next.length > MAX_DFU_OUTPUTS ? next.slice(next.length - MAX_DFU_OUTPUTS) : next;
+    });
+  }, []);
 
   // --- log stream ---
   useEffect(() => {
@@ -116,6 +151,27 @@ export function useXvf(): UseXvfResult {
       if (cleanup) cleanup();
     };
   }, [pushLog]);
+
+  // --- firmware flashing output stream ---
+  useEffect(() => {
+    let cleanup: (() => void) | null = null;
+    let cancelled = false;
+    xvf
+      .onDfuOutput((event: DfuOutputEvent) => {
+        pushDfuOutput(event);
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else cleanup = () => fn();
+      })
+      .catch((e) => {
+        console.error("[v0] xvf dfu output subscribe failed", e);
+      });
+    return () => {
+      cancelled = true;
+      if (cleanup) cleanup();
+    };
+  }, [pushDfuOutput]);
 
   // --- catalog ---
   useEffect(() => {
@@ -156,6 +212,12 @@ export function useXvf(): UseXvfResult {
           const withP = withPath(existing);
           setCurrent(withP);
           setSelectedPath(withP.path);
+          try {
+            const buildMessage = await xvf.readParameter("BLD_MSG");
+            setArrayType(parseArrayType(buildMessage));
+          } catch (e) {
+            pushLog("warn", `Array type probe failed: ${errorMessage(e)}`);
+          }
         }
       } catch (e) {
         pushLog("warn", `Current device probe failed: ${errorMessage(e)}`);
@@ -190,6 +252,15 @@ export function useXvf(): UseXvfResult {
         const withP = withPath(info);
         setCurrent(withP);
         setSelectedPath(withP.path);
+        try {
+          const buildMessage = await xvf.readParameter("BLD_MSG");
+          const detectedArrayType = parseArrayType(buildMessage);
+          setArrayType(detectedArrayType);
+          pushLog("info", `Detected ${detectedArrayType} microphone array`);
+        } catch (probeError) {
+          setArrayType("circular");
+          pushLog("warn", `Array type probe failed: ${errorMessage(probeError)}`);
+        }
         pushLog("info", `Connected to ${info.product ?? "device"} (${info.vidHex}:${info.pidHex})`);
       } catch (e) {
         const msg = errorMessage(e);
@@ -207,6 +278,7 @@ export function useXvf(): UseXvfResult {
     try {
       await xvf.disconnect();
       setCurrent(null);
+      setArrayType("circular");
       pushLog("info", "Disconnected");
     } catch (e) {
       const msg = errorMessage(e);
@@ -222,6 +294,7 @@ export function useXvf(): UseXvfResult {
     try {
       await xvf.reboot();
       setCurrent(null);
+      setArrayType("circular");
       pushLog("warn", "Reboot command sent; USB connection closed");
       // Refresh after short delay so renumeration finishes.
       setTimeout(() => {
@@ -235,6 +308,44 @@ export function useXvf(): UseXvfResult {
       setLoading(false);
     }
   }, [pushLog, refreshDevices]);
+
+  const checkDfuUtil = useCallback(async (): Promise<DfuCheckResult | null> => {
+    try {
+      const result = await xvf.checkDfuUtil();
+      pushLog(
+        result.available ? "info" : "warn",
+        result.available ? `dfu-util ready: ${result.executable}` : "dfu-util is not available"
+      );
+      return result;
+    } catch (e) {
+      const msg = errorMessage(e);
+      setError(msg);
+      pushLog("error", `dfu-util check failed: ${msg}`);
+      return null;
+    }
+  }, [pushLog]);
+
+  const flashFirmware = useCallback(
+    async (path: string): Promise<boolean> => {
+      clearDfuOutputs();
+      try {
+        await xvf.flashFirmware(path);
+        pushLog("info", "Firmware flashing completed");
+        setCurrent(null);
+        setArrayType("circular");
+        setTimeout(() => {
+          void refreshDevices();
+        }, 1200);
+        return true;
+      } catch (e) {
+        const msg = errorMessage(e);
+        setError(msg);
+        pushLog("error", `Firmware flashing failed: ${msg}`);
+        return false;
+      }
+    },
+    [clearDfuOutputs, pushLog, refreshDevices]
+  );
 
   const read = useCallback(
     async (name: string): Promise<ReadResult | null> => {
@@ -281,6 +392,7 @@ export function useXvf(): UseXvfResult {
     devices,
     selectedPath,
     current,
+    arrayType,
     loading,
     error,
     refreshDevices,
@@ -288,14 +400,28 @@ export function useXvf(): UseXvfResult {
     connect,
     disconnect,
     reboot,
+    checkDfuUtil,
+    flashFirmware,
     commands,
     read,
     write,
     readMany,
     logs,
+    dfuOutputs,
     clearLogs,
+    clearDfuOutputs,
     source,
   };
+}
+
+function parseArrayType(values: XvfValue[]): XvfArrayType {
+  const message = values
+    .map((value) => String(value))
+    .join(" ")
+    .toLowerCase();
+  if (message.includes("lin")) return "linear";
+  if (message.includes("sqr")) return "circular";
+  return "circular";
 }
 
 function errorMessage(e: unknown): string {

@@ -4,7 +4,11 @@ mod xvf;
 use tauri::Manager;
 
 #[tauri::command]
-fn update_tray_menu(app: tauri::AppHandle, show_text: String, quit_text: String) -> Result<(), String> {
+fn update_tray_menu(
+    app: tauri::AppHandle,
+    show_text: String,
+    quit_text: String,
+) -> Result<(), String> {
     plugins::system_tray::update_tray_menu(&app, &show_text, &quit_text)
 }
 
@@ -35,6 +39,8 @@ pub fn run() {
             xvf::commands::xvf_write,
             xvf::commands::xvf_read_many,
             xvf::commands::xvf_reboot_device,
+            xvf::commands::xvf_check_dfu_util,
+            xvf::commands::xvf_flash_firmware,
         ]);
 
     // Only enable updater in release mode

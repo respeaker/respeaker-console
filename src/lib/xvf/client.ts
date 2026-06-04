@@ -9,11 +9,14 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import {
   isMockEnv,
+  mockCheckDfuUtil,
   mockConnect,
   mockCurrentDevice,
   mockDisconnect,
+  mockFlashFirmware,
   mockListCommands,
   mockListDevices,
+  mockOnDfuOutput,
   mockOnLog,
   mockRead,
   mockReadMany,
@@ -23,6 +26,8 @@ import {
 import type {
   ConnectArgs,
   DeviceInfo,
+  DfuCheckResult,
+  DfuOutputEvent,
   LogEvent,
   ParameterInfo,
   ReadManyResult,
@@ -76,6 +81,16 @@ export async function reboot(): Promise<void> {
   return invoke("xvf_reboot_device");
 }
 
+export async function checkDfuUtil(): Promise<DfuCheckResult> {
+  if (isMockEnv()) return mockCheckDfuUtil();
+  return invoke<DfuCheckResult>("xvf_check_dfu_util");
+}
+
+export async function flashFirmware(path: string): Promise<void> {
+  if (isMockEnv()) return mockFlashFirmware(path);
+  return invoke("xvf_flash_firmware", { path });
+}
+
 // ----- Log event stream -----
 
 export async function onLog(listener: (event: LogEvent) => void): Promise<UnlistenFn> {
@@ -84,6 +99,14 @@ export async function onLog(listener: (event: LogEvent) => void): Promise<Unlist
     return async () => off();
   }
   return listen<LogEvent>("xvf://log", (event) => listener(event.payload));
+}
+
+export async function onDfuOutput(listener: (event: DfuOutputEvent) => void): Promise<UnlistenFn> {
+  if (isMockEnv()) {
+    const off = mockOnDfuOutput(listener);
+    return async () => off();
+  }
+  return listen<DfuOutputEvent>("xvf://dfu-output", (event) => listener(event.payload));
 }
 
 // ----- Environment helpers -----
