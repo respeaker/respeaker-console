@@ -1,13 +1,13 @@
 {
   "app": {
-    "title": "ReSpeaker Console",
-    "welcome": "ReSpeaker Console",
+    "title": "reSpeaker Console",
+    "welcome": "reSpeaker Console",
     "description": "通过 USB 配置、监控并检查 XCore XVF3800 语音处理器"
   },
   "xvf": {
     "loading": "加载中…",
     "app": {
-      "title": "ReSpeaker Console",
+      "title": "reSpeaker Console",
       "subtitle": "通过 USB 配置、监控并检查 XCore XVF3800 语音处理器"
     },
     "tabs": {
@@ -24,14 +24,14 @@
       "noDevice": "未检测到设备",
       "mockMode": "模拟模式",
       "offline": "离线",
-      "connectHint": "请通过 USB 连接 ReSpeaker XVF3800，然后点击扫描检测设备。",
+      "connectHint": "请通过 USB 连接 reSpeaker XVF3800，然后点击扫描检测设备。",
       "streaming": "正在接收遥测",
       "idle": "空闲"
     },
     "device": {
       "title": "USB 设备",
       "refresh": "扫描",
-      "empty": "未检测到 ReSpeaker 设备，请连接后点击扫描。",
+      "empty": "未检测到 reSpeaker 设备，请连接后点击扫描。",
       "mockBadge": "模拟",
       "connected": "已连接",
       "connect": "连接",
@@ -260,7 +260,7 @@
   "about": {
     "title": "关于",
     "button": "关于",
-    "appName": "ReSpeaker Console",
+    "appName": "reSpeaker Console",
     "version": "版本",
     "close": "关闭"
   },

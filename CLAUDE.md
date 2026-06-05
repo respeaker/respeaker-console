@@ -1,8 +1,8 @@
-# ReSpeaker Console
+# reSpeaker Console
 
 ## Project Overview
 
-Desktop control application for ReSpeaker XVF3800 built with Tauri v2 + React 19 + TypeScript + shadcn/ui.
+Desktop control application for reSpeaker XVF3800 built with Tauri v2 + React 19 + TypeScript + shadcn/ui.
 
 ## Architecture
 
@@ -226,7 +226,7 @@ System-level calls, native features, cross-platform desktop app wrapper.
 - `capabilities/default.json` - Permissions config
 
 **Key Settings**:
-- Product: `ReSpeaker Console`
+- Product: `reSpeaker Console`
 - Identifier: `com.wkstr.respeaker-console`
 - Window: 800x600
 - Dev Port: 1420

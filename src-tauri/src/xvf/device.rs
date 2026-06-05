@@ -1,4 +1,4 @@
-// USB control transport for ReSpeaker XVF3800.
+// USB control transport for reSpeaker XVF3800.
 //
 // Ported from `xvf_host.py` (XMOS reference host script).
 // Uses `rusb` so it works on Linux / macOS / Windows with libusb.

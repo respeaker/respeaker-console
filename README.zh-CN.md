@@ -1,6 +1,6 @@
 <div align="center">
 
-# ReSpeaker Console
+# reSpeaker Console
 
 [English](./README.md) | 简体中文
 
@@ -9,7 +9,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
-一款面向 ReSpeaker XVF3800 设备的桌面控制应用，基于 Tauri v2、React 19 和 TypeScript 构建。
+一款面向 reSpeaker XVF3800 设备的桌面控制应用，基于 Tauri v2、React 19 和 TypeScript 构建。
 
 </div>
 
@@ -19,7 +19,7 @@
 
 ## 简介
 
-ReSpeaker Console 是一个通过 USB 对 ReSpeaker XVF3800 进行配置、监控和诊断的跨平台桌面应用。它把设备命令面封装成可视化控制界面，方便研发、测试和现场支持人员在不依赖零散脚本的情况下完成常见操作。
+reSpeaker Console 是一个通过 USB 对 reSpeaker XVF3800 进行配置、监控和诊断的跨平台桌面应用。它把设备命令面封装成可视化控制界面，方便研发、测试和现场支持人员在不依赖零散脚本的情况下完成常见操作。
 
 当前应用采用单设备连接模型，围绕连接设备、查看实时状态、调整参数、管理持久化配置、导出诊断信息和执行更新等实际工作流进行设计。
 

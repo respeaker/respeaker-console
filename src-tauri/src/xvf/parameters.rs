@@ -1,4 +1,4 @@
-// Parameter table for ReSpeaker XVF3800.
+// Parameter table for reSpeaker XVF3800.
 // Direct port of PARAMETERS in `xvf_host.py`.
 //
 // Each entry: (name, resid, cmdid, length, access, kind, description)

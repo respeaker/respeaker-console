@@ -27,7 +27,7 @@ export function ConnectionStatus({ device, firmwareMetadata, mock, className }: 
       <StatusDot connected={!!device} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <span>{device ? (device.product ?? "ReSpeaker XVF3800") : t("xvf.status.noDevice")}</span>
+          <span>{device ? (device.product ?? "reSpeaker XVF3800") : t("xvf.status.noDevice")}</span>
           {mock ? (
             <Badge variant="warning" className="gap-1">
               <AlertTriangle className="size-3" />

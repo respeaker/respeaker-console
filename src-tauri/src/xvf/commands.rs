@@ -144,7 +144,7 @@ fn dfu_hint() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        return Some("dfu-util.exe is bundled with the app. If it is missing, reinstall ReSpeaker Console or place dfu-util.exe on PATH.".to_string());
+        return Some("dfu-util.exe is bundled with the app. If it is missing, reinstall reSpeaker Console or place dfu-util.exe on PATH.".to_string());
     }
     #[allow(unreachable_code)]
     None

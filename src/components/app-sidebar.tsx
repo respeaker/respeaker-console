@@ -55,7 +55,7 @@ export function AppSidebar({ activeTab, onTabChange, className }: AppSidebarProp
       <div className="border-border/40 flex h-8 items-center justify-center border-b px-2">
         {!collapsed && (
           <span className="text-foreground truncate text-xs font-semibold tracking-tight">
-            ReSpeaker
+            reSpeaker
           </span>
         )}
         {collapsed && <span className="text-foreground text-xs font-bold">RC</span>}

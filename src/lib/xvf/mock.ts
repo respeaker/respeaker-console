@@ -34,7 +34,7 @@ const STATE: {
       bus: 20,
       address: 3,
       manufacturer: "Seeed Studio",
-      product: "ReSpeaker XVF3800 (Simulated)",
+      product: "reSpeaker XVF3800 (Simulated)",
       serial: "SIM-XVF3800-0001",
       vidHex: "0x2886",
       pidHex: "0x0018",

@@ -261,10 +261,10 @@ jobs:
           TAR_GZ=$(find "src-tauri/target/universal-apple-darwin/release/bundle" -name "*.app.tar.gz" | head -1)
           APP_DIR=$(find "src-tauri/target/universal-apple-darwin/release/bundle/macos" -maxdepth 1 -type d -name "*.app" | head -1)
 
-          cp "${DMG}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.dmg"
-          cp "${TAR_GZ}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.tar.gz"
-          cp "${TAR_GZ}.sig" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.tar.gz.sig"
-          ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-macOS.zip"
+          cp "${DMG}" "release-assets/reSpeaker-Console-${TAG_VERSION}-macOS.dmg"
+          cp "${TAR_GZ}" "release-assets/reSpeaker-Console-${TAG_VERSION}-macOS.tar.gz"
+          cp "${TAR_GZ}.sig" "release-assets/reSpeaker-Console-${TAG_VERSION}-macOS.tar.gz.sig"
+          ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "release-assets/reSpeaker-Console-${TAG_VERSION}-macOS.zip"
 
       - name: Prepare Windows assets
         if: matrix.os == 'windows'
@@ -277,16 +277,16 @@ jobs:
             throw "No MSI bundle found"
           }
 
-          Copy-Item $msi.FullName "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows.msi"
+          Copy-Item $msi.FullName "release-assets/reSpeaker-Console-$env:TAG_VERSION-Windows.msi"
           if (Test-Path "$($msi.FullName).sig") {
-            Copy-Item "$($msi.FullName).sig" "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows.msi.sig"
+            Copy-Item "$($msi.FullName).sig" "release-assets/reSpeaker-Console-$env:TAG_VERSION-Windows.msi.sig"
           }
 
           $portableDir = "release-assets/portable"
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-          Copy-Item "src-tauri/target/release/respeaker-console.exe" "$portableDir/ReSpeaker-Console.exe"
+          Copy-Item "src-tauri/target/release/respeaker-console.exe" "$portableDir/reSpeaker-Console.exe"
           Copy-Item "src-tauri/resources/windows/dfu-util/*" $portableDir -Force
-          Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows-Portable.zip" -Force
+          Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/reSpeaker-Console-$env:TAG_VERSION-Windows-Portable.zip" -Force
           Remove-Item -Recurse -Force $portableDir
 
       - name: Prepare Linux assets
@@ -300,10 +300,10 @@ jobs:
           DEB=$(find "src-tauri/target/release/bundle" -name "*.deb" | head -1)
           RPM=$(find "src-tauri/target/release/bundle" -name "*.rpm" | head -1)
 
-          cp "${APPIMAGE}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.AppImage"
-          cp "${APPIMAGE}.sig" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.AppImage.sig"
-          cp "${DEB}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.deb"
-          cp "${RPM}" "release-assets/ReSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.rpm"
+          cp "${APPIMAGE}" "release-assets/reSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.AppImage"
+          cp "${APPIMAGE}.sig" "release-assets/reSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.AppImage.sig"
+          cp "${DEB}" "release-assets/reSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.deb"
+          cp "${RPM}" "release-assets/reSpeaker-Console-${TAG_VERSION}-Linux-${{ matrix.arch }}.rpm"
 
       - name: List prepared assets
         shell: bash
@@ -342,14 +342,14 @@ jobs:
           PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
-          MAC_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-macOS.tar.gz"
-          MAC_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-macOS.tar.gz.sig")
-          WIN_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-Windows.msi"
-          WIN_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-Windows.msi.sig")
-          LINUX_X64_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-Linux-x86_64.AppImage"
-          LINUX_X64_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-Linux-x86_64.AppImage.sig")
-          LINUX_ARM64_URL="${BASE_URL}/ReSpeaker-Console-${TAG}-Linux-arm64.AppImage"
-          LINUX_ARM64_SIG=$(cat "release-assets/ReSpeaker-Console-${TAG}-Linux-arm64.AppImage.sig")
+          MAC_URL="${BASE_URL}/reSpeaker-Console-${TAG}-macOS.tar.gz"
+          MAC_SIG=$(cat "release-assets/reSpeaker-Console-${TAG}-macOS.tar.gz.sig")
+          WIN_URL="${BASE_URL}/reSpeaker-Console-${TAG}-Windows.msi"
+          WIN_SIG=$(cat "release-assets/reSpeaker-Console-${TAG}-Windows.msi.sig")
+          LINUX_X64_URL="${BASE_URL}/reSpeaker-Console-${TAG}-Linux-x86_64.AppImage"
+          LINUX_X64_SIG=$(cat "release-assets/reSpeaker-Console-${TAG}-Linux-x86_64.AppImage.sig")
+          LINUX_ARM64_URL="${BASE_URL}/reSpeaker-Console-${TAG}-Linux-arm64.AppImage"
+          LINUX_ARM64_SIG=$(cat "release-assets/reSpeaker-Console-${TAG}-Linux-arm64.AppImage.sig")
 
           cat > "release-assets/latest.json" <<EOF
           {
@@ -389,18 +389,18 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ReSpeaker Console ${{ github.ref_name }}
+          name: reSpeaker Console ${{ github.ref_name }}
           body: |
-            ## ReSpeaker Console ${{ github.ref_name }}
+            ## reSpeaker Console ${{ github.ref_name }}
 
-            Desktop release for ReSpeaker XVF3800 device management.
+            Desktop release for reSpeaker XVF3800 device management.
 
             ### Downloads
 
-            - **macOS**: `ReSpeaker-Console-${{ github.ref_name }}-macOS.dmg` or `ReSpeaker-Console-${{ github.ref_name }}-macOS.zip`
-            - **Windows**: `ReSpeaker-Console-${{ github.ref_name }}-Windows.msi` or `ReSpeaker-Console-${{ github.ref_name }}-Windows-Portable.zip`
-            - **Linux (x86_64)**: `ReSpeaker-Console-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-            - **Linux (ARM64)**: `ReSpeaker-Console-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
+            - **macOS**: `reSpeaker-Console-${{ github.ref_name }}-macOS.dmg` or `reSpeaker-Console-${{ github.ref_name }}-macOS.zip`
+            - **Windows**: `reSpeaker-Console-${{ github.ref_name }}-Windows.msi` or `reSpeaker-Console-${{ github.ref_name }}-Windows-Portable.zip`
+            - **Linux (x86_64)**: `reSpeaker-Console-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
+            - **Linux (ARM64)**: `reSpeaker-Console-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
-            > `ReSpeaker-Console-${{ github.ref_name }}-macOS.tar.gz` and `latest.json` are updater assets for in-app updates.
+            > `reSpeaker-Console-${{ github.ref_name }}-macOS.tar.gz` and `latest.json` are updater assets for in-app updates.
           files: release-assets/*

@@ -71,7 +71,7 @@ pub fn run() {
 
 ```json
 {
-  "productName": "ReSpeaker Console",
+  "productName": "reSpeaker Console",
   "version": "0.1.0",
   "identifier": "com.wkstr.respeaker-console",
   "build": {
