@@ -231,6 +231,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: Validate Windows dfu-util resources
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "src-tauri/resources/windows/dfu-util/dfu-util.exe")) {
+            throw "Missing bundled dfu-util.exe"
+          }
+          if (-not (Test-Path "src-tauri/resources/windows/dfu-util/libusb-1.0.dll")) {
+            throw "Missing bundled libusb-1.0.dll"
+          }
+
       - name: Build Tauri App (Linux)
         if: matrix.os == 'linux'
         shell: bash
@@ -274,6 +285,7 @@ jobs:
           $portableDir = "release-assets/portable"
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
           Copy-Item "src-tauri/target/release/respeaker-console.exe" "$portableDir/ReSpeaker-Console.exe"
+          Copy-Item "src-tauri/resources/windows/dfu-util/*" $portableDir -Force
           Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/ReSpeaker-Console-$env:TAG_VERSION-Windows-Portable.zip" -Force
           Remove-Item -Recurse -Force $portableDir
 

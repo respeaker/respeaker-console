@@ -14,6 +14,8 @@ use std::time::Duration;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(target_os = "windows")]
+use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 
 use super::device::{
@@ -142,13 +144,13 @@ fn dfu_hint() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        return Some("Bundle dfu-util.exe with the application or place it on PATH.".to_string());
+        return Some("dfu-util.exe is bundled with the app. If it is missing, reinstall ReSpeaker Console or place dfu-util.exe on PATH.".to_string());
     }
     #[allow(unreachable_code)]
     None
 }
 
-fn resolve_dfu_util() -> PathBuf {
+fn resolve_dfu_util(_app: &AppHandle) -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         if let Ok(exe) = std::env::current_exe() {
@@ -181,16 +183,35 @@ fn resolve_dfu_util() -> PathBuf {
     {
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
-                let adjacent = dir.join("dfu-util.exe");
-                if adjacent.exists() {
-                    return adjacent;
-                }
-                let bundled = dir.join("binaries").join("dfu-util.exe");
-                if bundled.exists() {
-                    return bundled;
+                for candidate in [
+                    dir.join("dfu-util.exe"),
+                    dir.join("binaries").join("dfu-util.exe"),
+                ] {
+                    if candidate.exists() {
+                        return candidate;
+                    }
                 }
             }
         }
+
+        if let Ok(resource_dir) = _app.path().resource_dir() {
+            for candidate in [
+                resource_dir
+                    .join("resources")
+                    .join("windows")
+                    .join("dfu-util")
+                    .join("dfu-util.exe"),
+                resource_dir
+                    .join("windows")
+                    .join("dfu-util")
+                    .join("dfu-util.exe"),
+            ] {
+                if candidate.exists() {
+                    return candidate;
+                }
+            }
+        }
+
         return PathBuf::from("dfu-util.exe");
     }
 
@@ -483,7 +504,7 @@ pub fn xvf_reboot_device(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn xvf_check_dfu_util(app: AppHandle) -> Result<DfuCheckResult, String> {
-    let executable = resolve_dfu_util();
+    let executable = resolve_dfu_util(&app);
     let executable_display = executable.to_string_lossy().to_string();
 
     let version_output = Command::new(&executable)
@@ -534,7 +555,7 @@ pub fn xvf_check_dfu_util(app: AppHandle) -> Result<DfuCheckResult, String> {
 
 #[tauri::command]
 pub fn xvf_flash_firmware(app: AppHandle, path: String) -> Result<(), String> {
-    let executable = resolve_dfu_util();
+    let executable = resolve_dfu_util(&app);
     let executable_display = executable.to_string_lossy().to_string();
 
     emit_log(

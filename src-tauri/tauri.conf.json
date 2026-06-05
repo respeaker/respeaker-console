@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ReSpeaker-Console",
   "mainBinaryName": "respeaker-console",
-  "version": "0.1.5",
+  "version": "1.0.5",
   "identifier": "com.wkstr.respeaker-console",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -46,6 +46,9 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "resources": [
+      "resources/windows/dfu-util/**/*"
+    ],
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
