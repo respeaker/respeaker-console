@@ -204,6 +204,25 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
 
+      - name: Validate macOS linked libraries
+        if: matrix.os == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_BINARY=$(find "src-tauri/target/universal-apple-darwin/release/bundle/macos" -path "*.app/Contents/MacOS/respeaker-console" | head -1)
+          if [ -z "${APP_BINARY}" ]; then
+            echo "::error::macOS app binary was not found."
+            exit 1
+          fi
+
+          LINKED_LIBS=$(otool -L "${APP_BINARY}")
+          echo "${LINKED_LIBS}"
+
+          if [[ "${LINKED_LIBS}" == *"/opt/homebrew/"* ]] || [[ "${LINKED_LIBS}" == *"/usr/local/"* ]]; then
+            echo "::error::macOS release binary links to a local Homebrew library. Use vendored/static dependencies instead."
+            exit 1
+          fi
+
       - name: Build Tauri App (Windows)
         if: matrix.os == 'windows'
         shell: pwsh
