@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,6 +20,7 @@ import type { UseXvfResult } from "@/hooks/use-xvf";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -42,6 +43,8 @@ import {
 import type { DfuCheckResult } from "@/lib/xvf/types";
 import { cn } from "@/lib/utils";
 
+type FirmwareFlashPhase = "idle" | "flashing" | "success" | "error";
+
 type Props = {
   xvf: UseXvfResult;
 };
@@ -52,6 +55,7 @@ export function DevicePanel({ xvf }: Props) {
     devices,
     selectedPath,
     current,
+    firmwareMetadata,
     loading,
     error,
     refreshDevices,
@@ -71,6 +75,28 @@ export function DevicePanel({ xvf }: Props) {
   const [dfuStatus, setDfuStatus] = useState<DfuCheckResult | null>(null);
   const [firmwarePath, setFirmwarePath] = useState<string | null>(null);
   const [firmwareBusy, setFirmwareBusy] = useState<"check" | "flash" | "pick" | null>(null);
+  const [firmwareFlashPhase, setFirmwareFlashPhase] = useState<FirmwareFlashPhase>("idle");
+
+  const firmwareProgress = useMemo(() => {
+    if (firmwareFlashPhase === "success") return 100;
+    if (firmwareFlashPhase === "error") return 100;
+    if (firmwareBusy !== "flash") return 0;
+
+    const outputCount = dfuOutputs.length;
+    if (outputCount >= 5) return 85;
+    if (outputCount >= 3) return 65;
+    if (outputCount >= 1) return 40;
+    return 15;
+  }, [dfuOutputs.length, firmwareBusy, firmwareFlashPhase]);
+
+  const firmwareProgressStatus =
+    firmwareFlashPhase === "success"
+      ? t("xvf.device.firmware.progress.complete")
+      : firmwareFlashPhase === "error"
+        ? t("xvf.device.firmware.progress.failed")
+        : firmwareBusy === "flash"
+          ? t("xvf.device.firmware.progress.flashing")
+          : t("xvf.device.firmware.progress.ready");
 
   const run = async (kind: typeof busy, fn: () => Promise<unknown>) => {
     setBusy(kind);
@@ -110,6 +136,7 @@ export function DevicePanel({ xvf }: Props) {
 
   const handlePickFirmware = async () => {
     setFirmwareBusy("pick");
+    setFirmwareFlashPhase("idle");
     try {
       if (source === "mock") {
         setFirmwarePath("mock-firmware.bin");
@@ -130,10 +157,14 @@ export function DevicePanel({ xvf }: Props) {
   const handleFlashFirmware = async () => {
     if (!firmwarePath) return;
     setFirmwareBusy("flash");
+    setFirmwareFlashPhase("flashing");
     try {
       const ok = await flashFirmware(firmwarePath);
       if (ok) {
         setDfuStatus(null);
+        setFirmwareFlashPhase("success");
+      } else {
+        setFirmwareFlashPhase("error");
       }
     } finally {
       setFirmwareBusy(null);
@@ -186,6 +217,7 @@ export function DevicePanel({ xvf }: Props) {
           <ul className="flex flex-col gap-2">
             {devices.map((dev) => {
               const active = current?.path === dev.path;
+              const buildSummary = active ? formatBuildSummary(firmwareMetadata, t) : null;
               return (
                 <li key={dev.path}>
                   <button
@@ -211,6 +243,20 @@ export function DevicePanel({ xvf }: Props) {
                       <span className="text-muted-foreground text-xs">
                         {t("xvf.device.serial")}: {dev.serial ?? "—"}
                       </span>
+                      {active && firmwareMetadata && (
+                        <span className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                          {firmwareMetadata.version && (
+                            <span>
+                              {t("xvf.device.info.version")}: {firmwareMetadata.version}
+                            </span>
+                          )}
+                          {buildSummary && (
+                            <span>
+                              {t("xvf.device.info.build")}: {buildSummary}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {active && (
@@ -403,7 +449,9 @@ export function DevicePanel({ xvf }: Props) {
                     ) : (
                       <Binary className="mr-2 h-4 w-4" aria-hidden />
                     )}
-                    {t("xvf.device.firmware.flash")}
+                    {firmwareBusy === "flash"
+                      ? t("xvf.device.firmware.flashing")
+                      : t("xvf.device.firmware.flash")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -422,6 +470,20 @@ export function DevicePanel({ xvf }: Props) {
                     {firmwarePath ?? t("xvf.device.firmware.noFile")}
                   </div>
                 </div>
+
+                {(firmwareBusy === "flash" || firmwareFlashPhase !== "idle") && (
+                  <div className="space-y-2 rounded-md border p-3 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground font-medium">
+                        {firmwareProgressStatus}
+                      </span>
+                      <span className="text-muted-foreground tabular-nums">
+                        {firmwareProgress}%
+                      </span>
+                    </div>
+                    <Progress value={firmwareProgress} />
+                  </div>
+                )}
 
                 <div className="bg-background max-h-52 overflow-auto rounded-md border p-3 font-mono text-xs">
                   {dfuOutputs.length === 0 ? (
@@ -504,4 +566,19 @@ function DfuStatusPanel({ status }: { status: DfuCheckResult }) {
       )}
     </div>
   );
+}
+
+function formatBuildSummary(
+  metadata: UseXvfResult["firmwareMetadata"],
+  t: (key: string) => string
+): string | null {
+  const build = metadata?.build;
+  if (!build) return null;
+
+  const parts: string[] = [];
+  if (build.raw) parts.push(build.raw);
+  if (build.sampleRateKhz != null) parts.push(`${build.sampleRateKhz} kHz`);
+  if (build.arrayType) parts.push(t(`xvf.device.info.arrayTypes.${build.arrayType}`));
+  if (build.channelMode) parts.push(build.channelMode);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }

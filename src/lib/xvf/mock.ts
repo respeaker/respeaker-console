@@ -72,7 +72,7 @@ function ensureValues(params: ParameterInfo[]) {
   }
   // Seed some interesting defaults for the UI showcase.
   STATE.values.set("VERSION", [2, 1, 0]);
-  STATE.values.set("BLD_MSG", ["Release XVF3800 (simulated)"]);
+  STATE.values.set("BLD_MSG", ["ua-io16-sqr"]);
   STATE.values.set("BLD_HOST", ["v0-sandbox"]);
   STATE.values.set("BLD_REPO_HASH", ["deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"]);
   STATE.values.set("BLD_MODIFIED", ["false"]);
@@ -94,6 +94,8 @@ function ensureValues(params: ParameterInfo[]) {
   STATE.values.set("AEC_AECCONVERGED", [1]);
   STATE.values.set("AUDIO_MGR_MIC_GAIN", [1.0]);
   STATE.values.set("AUDIO_MGR_REF_GAIN", [1.0]);
+  STATE.values.set("AUDIO_MGR_OP_L", [8, 0]);
+  STATE.values.set("AUDIO_MGR_OP_R", [0, 0]);
 }
 
 function defaultValue(p: ParameterInfo): XvfValue[] {

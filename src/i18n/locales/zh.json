@@ -22,7 +22,11 @@
       "connected": "已连接 {{name}}",
       "notConnected": "未连接",
       "noDevice": "未检测到设备",
-      "mockMode": "模拟模式"
+      "mockMode": "模拟模式",
+      "offline": "离线",
+      "connectHint": "请通过 USB 连接 ReSpeaker XVF3800，然后点击扫描检测设备。",
+      "streaming": "正在接收遥测",
+      "idle": "空闲"
     },
     "device": {
       "title": "USB 设备",
@@ -35,6 +39,14 @@
       "reboot": "重启",
       "unknownProduct": "未知设备",
       "serial": "序列号",
+      "info": {
+        "version": "固件",
+        "build": "编译信息",
+        "arrayTypes": {
+          "circular": "圆形阵列",
+          "linear": "线型阵列"
+        }
+      },
       "firmware": {
         "title": "固件烧录",
         "description": "设备进入 DFU 模式后，通过 dfu-util 更新固件。",
@@ -68,7 +80,14 @@
         "selectedFile": "已选择文件",
         "noFile": "尚未选择固件文件",
         "flash": "烧录固件",
+        "flashing": "正在烧录...",
         "noOutput": "暂无烧录输出",
+        "progress": {
+          "ready": "已准备烧录",
+          "flashing": "正在烧录固件，请勿断开设备。",
+          "complete": "固件烧录完成",
+          "failed": "固件烧录失败"
+        },
         "back": "上一步",
         "next": "下一步"
       }
@@ -91,6 +110,28 @@
       "fminSpeindex": "最低语音频率",
       "outputLeft": "左声道输出路由",
       "outputRight": "右声道输出路由",
+      "outputRoute": {
+        "category": "类别",
+        "source": "来源",
+        "sourceIndex": "来源索引",
+        "autoSelectBeam": "自动选择波束",
+        "userChannel": "用户通道"
+      },
+      "outputCategories": {
+        "0": "静音",
+        "1": "放大前原始麦克风数据",
+        "2": "解包后的麦克风数据",
+        "3": "带系统延迟的放大后麦克风数据",
+        "4": "远端参考数据",
+        "5": "带系统延迟的远端参考数据",
+        "6": "处理后数据",
+        "7": "AEC 残差 / ASR 数据",
+        "8": "用户选择通道",
+        "9": "Post SHF DSP 通道",
+        "10": "原生采样率远端数据",
+        "11": "系统延迟前的放大后麦克风数据",
+        "12": "带系统延迟的放大后远端参考数据"
+      },
       "groups": {
         "noiseSuppression": "噪声抑制",
         "gain": "增益",

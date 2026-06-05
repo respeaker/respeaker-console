@@ -34,6 +34,18 @@ export interface DfuOutputEntry {
 export type XvfSource = "mock" | "native";
 export type XvfArrayType = "circular" | "linear";
 
+export interface FirmwareBuildInfo {
+  raw: string;
+  sampleRateKhz: number | null;
+  arrayType: XvfArrayType | null;
+  channelMode: string | null;
+}
+
+export interface FirmwareMetadata {
+  version: string | null;
+  build: FirmwareBuildInfo | null;
+}
+
 export interface ReadResult {
   values: XvfValue[];
 }
@@ -44,6 +56,7 @@ export interface UseXvfResult {
   selectedPath: string | null;
   current: (DeviceInfo & { path: string }) | null;
   arrayType: XvfArrayType;
+  firmwareMetadata: FirmwareMetadata | null;
   loading: boolean;
   error: string | null;
   refreshDevices: () => Promise<void>;
@@ -88,6 +101,7 @@ export function useXvf(): UseXvfResult {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [current, setCurrent] = useState<(DeviceInfo & { path: string }) | null>(null);
   const [arrayType, setArrayType] = useState<XvfArrayType>("circular");
+  const [firmwareMetadata, setFirmwareMetadata] = useState<FirmwareMetadata | null>(null);
   const [commands, setCommands] = useState<ParameterInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +128,28 @@ export function useXvf(): UseXvfResult {
 
   const clearLogs = useCallback(() => setLogs([]), []);
   const clearDfuOutputs = useCallback(() => setDfuOutputs([]), []);
+
+  const probeFirmwareMetadata = useCallback(async (): Promise<FirmwareMetadata | null> => {
+    try {
+      const [versionValues, buildValues] = await Promise.all([
+        xvf.readParameter("VERSION"),
+        xvf.readParameter("BLD_MSG"),
+      ]);
+      const metadata: FirmwareMetadata = {
+        version: formatVersion(versionValues),
+        build: parseBuildInfo(buildValues),
+      };
+      setFirmwareMetadata(metadata);
+      if (metadata.build?.arrayType) {
+        setArrayType(metadata.build.arrayType);
+      }
+      return metadata;
+    } catch (e) {
+      setFirmwareMetadata(null);
+      pushLog("warn", `Firmware metadata probe failed: ${errorMessage(e)}`);
+      return null;
+    }
+  }, [pushLog]);
 
   const pushDfuOutput = useCallback((event: DfuOutputEvent) => {
     dfuOutputIdRef.current += 1;
@@ -212,12 +248,7 @@ export function useXvf(): UseXvfResult {
           const withP = withPath(existing);
           setCurrent(withP);
           setSelectedPath(withP.path);
-          try {
-            const buildMessage = await xvf.readParameter("BLD_MSG");
-            setArrayType(parseArrayType(buildMessage));
-          } catch (e) {
-            pushLog("warn", `Array type probe failed: ${errorMessage(e)}`);
-          }
+          await probeFirmwareMetadata();
         }
       } catch (e) {
         pushLog("warn", `Current device probe failed: ${errorMessage(e)}`);
@@ -227,7 +258,7 @@ export function useXvf(): UseXvfResult {
     return () => {
       cancelled = true;
     };
-  }, [refreshDevices, pushLog]);
+  }, [probeFirmwareMetadata, refreshDevices, pushLog]);
 
   const selectDevice = useCallback(async (path: string) => {
     setSelectedPath(path);
@@ -252,14 +283,11 @@ export function useXvf(): UseXvfResult {
         const withP = withPath(info);
         setCurrent(withP);
         setSelectedPath(withP.path);
-        try {
-          const buildMessage = await xvf.readParameter("BLD_MSG");
-          const detectedArrayType = parseArrayType(buildMessage);
-          setArrayType(detectedArrayType);
-          pushLog("info", `Detected ${detectedArrayType} microphone array`);
-        } catch (probeError) {
+        const metadata = await probeFirmwareMetadata();
+        if (metadata?.build?.arrayType) {
+          pushLog("info", `Detected ${metadata.build.arrayType} microphone array`);
+        } else {
           setArrayType("circular");
-          pushLog("warn", `Array type probe failed: ${errorMessage(probeError)}`);
         }
         pushLog("info", `Connected to ${info.product ?? "device"} (${info.vidHex}:${info.pidHex})`);
       } catch (e) {
@@ -270,7 +298,7 @@ export function useXvf(): UseXvfResult {
         setLoading(false);
       }
     },
-    [devices, pushLog]
+    [devices, probeFirmwareMetadata, pushLog]
   );
 
   const disconnect = useCallback(async () => {
@@ -279,6 +307,7 @@ export function useXvf(): UseXvfResult {
       await xvf.disconnect();
       setCurrent(null);
       setArrayType("circular");
+      setFirmwareMetadata(null);
       pushLog("info", "Disconnected");
     } catch (e) {
       const msg = errorMessage(e);
@@ -295,6 +324,7 @@ export function useXvf(): UseXvfResult {
       await xvf.reboot();
       setCurrent(null);
       setArrayType("circular");
+      setFirmwareMetadata(null);
       pushLog("warn", "Reboot command sent; USB connection closed");
       // Refresh after short delay so renumeration finishes.
       setTimeout(() => {
@@ -333,6 +363,7 @@ export function useXvf(): UseXvfResult {
         pushLog("info", "Firmware flashing completed");
         setCurrent(null);
         setArrayType("circular");
+        setFirmwareMetadata(null);
         setTimeout(() => {
           void refreshDevices();
         }, 1200);
@@ -393,6 +424,7 @@ export function useXvf(): UseXvfResult {
     selectedPath,
     current,
     arrayType,
+    firmwareMetadata,
     loading,
     error,
     refreshDevices,
@@ -414,14 +446,48 @@ export function useXvf(): UseXvfResult {
   };
 }
 
-function parseArrayType(values: XvfValue[]): XvfArrayType {
+function valuesToText(values: XvfValue[]): string {
+  const strings = values.map((value) => String(value));
+  const separator = strings.length > 1 && strings.every((value) => value.length <= 1) ? "" : " ";
+  return strings.join(separator).split(String.fromCharCode(0)).join("").trim();
+}
+
+function formatVersion(values: XvfValue[]): string | null {
+  const numeric = values.filter((value): value is number => typeof value === "number");
+  if (numeric.length >= 3) {
+    return numeric.slice(0, 3).join(".");
+  }
+
+  const text = valuesToText(values);
+  return text.length > 0 ? text : null;
+}
+
+function parseBuildInfo(values: XvfValue[]): FirmwareBuildInfo | null {
+  const raw = valuesToText(values);
+  if (!raw) return null;
+
+  const normalized = raw.toLowerCase();
+  const match = normalized.match(/io(\d+)(?:-(\d+)ch)?-(sqr|lin)/);
+  const sampleRateKhz = match ? Number(match[1]) : null;
+  const channelMode = match?.[2] ? `${match[2]}ch` : null;
+  const arrayType = parseArrayType(values);
+
+  return {
+    raw,
+    sampleRateKhz: Number.isFinite(sampleRateKhz) ? sampleRateKhz : null,
+    arrayType,
+    channelMode,
+  };
+}
+
+function parseArrayType(values: XvfValue[]): XvfArrayType | null {
   const message = values
     .map((value) => String(value))
     .join(" ")
     .toLowerCase();
   if (message.includes("lin")) return "linear";
   if (message.includes("sqr")) return "circular";
-  return "circular";
+  return null;
 }
 
 function errorMessage(e: unknown): string {

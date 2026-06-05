@@ -22,7 +22,11 @@
       "connected": "Connected to {{name}}",
       "notConnected": "Not connected",
       "noDevice": "No device detected",
-      "mockMode": "Simulation"
+      "mockMode": "Simulation",
+      "offline": "Offline",
+      "connectHint": "Plug a ReSpeaker XVF3800 via USB and click Scan to detect it.",
+      "streaming": "Streaming telemetry",
+      "idle": "Idle"
     },
     "device": {
       "title": "USB Devices",
@@ -35,6 +39,14 @@
       "reboot": "Reboot",
       "unknownProduct": "Unknown device",
       "serial": "Serial",
+      "info": {
+        "version": "Firmware",
+        "build": "Build",
+        "arrayTypes": {
+          "circular": "Circular array",
+          "linear": "Linear array"
+        }
+      },
       "firmware": {
         "title": "Firmware Flashing",
         "description": "Update firmware with dfu-util after placing the device in DFU mode.",
@@ -68,7 +80,14 @@
         "selectedFile": "Selected file",
         "noFile": "No firmware file selected",
         "flash": "Flash Firmware",
+        "flashing": "Flashing...",
         "noOutput": "No flashing output yet",
+        "progress": {
+          "ready": "Ready to flash",
+          "flashing": "Flashing firmware. Do not disconnect the device.",
+          "complete": "Firmware flashing completed",
+          "failed": "Firmware flashing failed"
+        },
         "back": "Back",
         "next": "Next"
       }
@@ -91,6 +110,28 @@
       "fminSpeindex": "Minimum speech frequency",
       "outputLeft": "Left output route",
       "outputRight": "Right output route",
+      "outputRoute": {
+        "category": "Category",
+        "source": "Source",
+        "sourceIndex": "Source index",
+        "autoSelectBeam": "Auto-select beam",
+        "userChannel": "User channel"
+      },
+      "outputCategories": {
+        "0": "Silence",
+        "1": "Raw microphone data before amplification",
+        "2": "Unpacked microphone data",
+        "3": "Amplified microphone data with system delay",
+        "4": "Far end reference data",
+        "5": "Far end reference data with system delay",
+        "6": "Processed data",
+        "7": "AEC residual / ASR data",
+        "8": "User chosen channels",
+        "9": "Post SHF DSP channels",
+        "10": "Far end at native rate",
+        "11": "Amplified microphone data before system delay",
+        "12": "Amplified far end reference with system delay"
+      },
       "groups": {
         "noiseSuppression": "Noise suppression",
         "gain": "Gain",

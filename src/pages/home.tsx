@@ -94,6 +94,7 @@ export default function HomePage() {
           </div>
           <ConnectionStatus
             device={xvf.current}
+            firmwareMetadata={xvf.firmwareMetadata}
             mock={xvf.source === "mock"}
             className="w-full max-w-md"
           />
