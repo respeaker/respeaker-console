@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { formatNumber } from "@/lib/xvf/format";
@@ -36,35 +43,40 @@ type ToggleControlDef = {
   groupKey: string;
 };
 
-type AudioControlDef = NumericControlDef | ToggleControlDef;
+type RouteControlDef = {
+  kind: "route";
+  name: "AUDIO_MGR_OP_L" | "AUDIO_MGR_OP_R";
+  labelKey: string;
+  groupKey: string;
+};
 
-type ControlState = Record<string, number>;
+type AudioControlDef = NumericControlDef | ToggleControlDef | RouteControlDef;
+
+type ControlState = Record<string, XvfValue[]>;
+
+type OutputRouteCategory = {
+  id: number;
+  labelKey: string;
+  sources: number[];
+};
+
+const OUTPUT_ROUTE_CATEGORIES: OutputRouteCategory[] = [
+  { id: 0, labelKey: "xvf.audio.outputCategories.0", sources: [0] },
+  { id: 1, labelKey: "xvf.audio.outputCategories.1", sources: [0, 1, 2, 3] },
+  { id: 2, labelKey: "xvf.audio.outputCategories.2", sources: [0, 1, 2, 3] },
+  { id: 3, labelKey: "xvf.audio.outputCategories.3", sources: [0, 1, 2, 3] },
+  { id: 4, labelKey: "xvf.audio.outputCategories.4", sources: [0] },
+  { id: 5, labelKey: "xvf.audio.outputCategories.5", sources: [0] },
+  { id: 6, labelKey: "xvf.audio.outputCategories.6", sources: [0, 1, 2, 3] },
+  { id: 7, labelKey: "xvf.audio.outputCategories.7", sources: [0, 1, 2, 3] },
+  { id: 8, labelKey: "xvf.audio.outputCategories.8", sources: [0, 1] },
+  { id: 9, labelKey: "xvf.audio.outputCategories.9", sources: [0, 1, 2, 3] },
+  { id: 10, labelKey: "xvf.audio.outputCategories.10", sources: [0, 1, 2, 3, 4, 5] },
+  { id: 11, labelKey: "xvf.audio.outputCategories.11", sources: [0, 1, 2, 3] },
+  { id: 12, labelKey: "xvf.audio.outputCategories.12", sources: [0] },
+];
 
 const CONTROL_DEFS: AudioControlDef[] = [
-  {
-    kind: "numeric",
-    name: "AUDIO_MGR_MIC_GAIN",
-    labelKey: "xvf.audio.micGain",
-    groupKey: "xvf.audio.groups.gain",
-    min: 0,
-    max: 10,
-    step: 0.05,
-    digits: 2,
-    valueKind: "float",
-    unit: "x",
-  },
-  {
-    kind: "numeric",
-    name: "AUDIO_MGR_REF_GAIN",
-    labelKey: "xvf.audio.refGain",
-    groupKey: "xvf.audio.groups.gain",
-    min: 0,
-    max: 10,
-    step: 0.05,
-    digits: 2,
-    valueKind: "float",
-    unit: "x",
-  },
   {
     kind: "numeric",
     name: "PP_AGCDESIREDLEVEL",
@@ -133,44 +145,22 @@ const CONTROL_DEFS: AudioControlDef[] = [
     labelKey: "xvf.audio.dtSensitive",
     groupKey: "xvf.audio.groups.detection",
     min: 0,
-    max: 10,
+    max: 15,
     step: 1,
     digits: 0,
     valueKind: "int",
   },
   {
-    kind: "numeric",
-    name: "PP_FMIN_SPEINDEX",
-    labelKey: "xvf.audio.fminSpeindex",
-    groupKey: "xvf.audio.groups.detection",
-    min: 0,
-    max: 8000,
-    step: 10,
-    digits: 0,
-    valueKind: "float",
-    unit: "Hz",
-  },
-  {
-    kind: "numeric",
+    kind: "route",
     name: "AUDIO_MGR_OP_L",
     labelKey: "xvf.audio.outputLeft",
     groupKey: "xvf.audio.groups.output",
-    min: 0,
-    max: 255,
-    step: 1,
-    digits: 0,
-    valueKind: "int",
   },
   {
-    kind: "numeric",
+    kind: "route",
     name: "AUDIO_MGR_OP_R",
     labelKey: "xvf.audio.outputRight",
     groupKey: "xvf.audio.groups.output",
-    min: 0,
-    max: 255,
-    step: 1,
-    digits: 0,
-    valueKind: "int",
   },
   {
     kind: "toggle",
@@ -234,8 +224,8 @@ export function AudioPanel({ xvf }: Props) {
       if (cancelled) return;
       const next: ControlState = {};
       for (const { def } of availableControls) {
-        const value = resultNumber(results[def.name]?.values);
-        if (value != null) next[def.name] = value;
+        const result = results[def.name];
+        if (result) next[def.name] = result.values;
       }
       setValues(next);
       setReady(true);
@@ -250,8 +240,14 @@ export function AudioPanel({ xvf }: Props) {
 
   const writeValue = async (def: AudioControlDef, param: ParameterInfo, value: number) => {
     const normalized = def.kind === "numeric" ? normalizeValue(def, value) : value > 0.5 ? 1 : 0;
-    setValues((prev) => ({ ...prev, [def.name]: normalized }));
-    await write(def.name, valuesForParam(param, normalized));
+    const nextValues = valuesForParam(param, normalized);
+    setValues((prev) => ({ ...prev, [def.name]: nextValues }));
+    await write(def.name, nextValues);
+  };
+
+  const writeRoute = async (def: RouteControlDef, values: XvfValue[]) => {
+    setValues((prev) => ({ ...prev, [def.name]: values }));
+    await write(def.name, values);
   };
 
   return (
@@ -280,19 +276,32 @@ export function AudioPanel({ xvf }: Props) {
                       key={def.name}
                       id={def.name}
                       label={t(def.labelKey)}
-                      checked={(values[def.name] ?? 0) > 0.5}
+                      checked={(resultNumber(values[def.name]) ?? 0) > 0.5}
                       onChange={(checked) => void writeValue(def, param, checked ? 1 : 0)}
                       disabled={disabled}
+                    />
+                  ) : def.kind === "route" ? (
+                    <RouteControl
+                      key={def.name}
+                      def={def}
+                      label={t(def.labelKey)}
+                      value={values[def.name] ?? [0, 0]}
+                      disabled={disabled}
+                      t={t}
+                      onCommit={(nextValues) => void writeRoute(def, nextValues)}
                     />
                   ) : (
                     <NumericControl
                       key={def.name}
                       def={def}
                       label={t(def.labelKey)}
-                      value={values[def.name] ?? def.min}
+                      value={resultNumber(values[def.name]) ?? def.min}
                       disabled={disabled}
                       onChange={(value) =>
-                        setValues((prev) => ({ ...prev, [def.name]: normalizeValue(def, value) }))
+                        setValues((prev) => ({
+                          ...prev,
+                          [def.name]: [normalizeValue(def, value)],
+                        }))
                       }
                       onCommit={(value) => void writeValue(def, param, value)}
                     />
@@ -388,9 +397,112 @@ function ToggleControl({
   );
 }
 
+function RouteControl({
+  def,
+  label,
+  value,
+  disabled,
+  t,
+  onCommit,
+}: {
+  def: RouteControlDef;
+  label: string;
+  value: XvfValue[];
+  disabled: boolean;
+  t: (key: string) => string;
+  onCommit: (values: XvfValue[]) => void;
+}) {
+  const category = numericAt(value, 0) ?? 0;
+  const categoryDef = OUTPUT_ROUTE_CATEGORIES.find((item) => item.id === category);
+  const effectiveCategory = categoryDef ?? OUTPUT_ROUTE_CATEGORIES[0];
+  const source = numericAt(value, 1) ?? effectiveCategory.sources[0] ?? 0;
+  const effectiveSource = effectiveCategory.sources.includes(source)
+    ? source
+    : (effectiveCategory.sources[0] ?? 0);
+
+  const commitCategory = (nextCategory: number) => {
+    const nextCategoryDef =
+      OUTPUT_ROUTE_CATEGORIES.find((item) => item.id === nextCategory) ??
+      OUTPUT_ROUTE_CATEGORIES[0];
+    onCommit([nextCategoryDef.id, nextCategoryDef.sources[0] ?? 0]);
+  };
+
+  const commitSource = (nextSource: number) => {
+    onCommit([effectiveCategory.id, nextSource]);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={`${def.name}-category`} className="text-sm">
+          {label}
+        </Label>
+        <Badge variant="outline" className="tabular-nums">
+          [{effectiveCategory.id}, {effectiveSource}]
+        </Badge>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${def.name}-category`} className="text-muted-foreground text-xs">
+            {t("xvf.audio.outputRoute.category")}
+          </Label>
+          <Select
+            value={String(effectiveCategory.id)}
+            onValueChange={(next) => commitCategory(Number(next))}
+            disabled={disabled}
+          >
+            <SelectTrigger id={`${def.name}-category`} className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OUTPUT_ROUTE_CATEGORIES.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.id}: {t(item.labelKey)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${def.name}-source`} className="text-muted-foreground text-xs">
+            {t("xvf.audio.outputRoute.source")}
+          </Label>
+          <Select
+            value={String(effectiveSource)}
+            onValueChange={(next) => commitSource(Number(next))}
+            disabled={disabled}
+          >
+            <SelectTrigger id={`${def.name}-source`} className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {effectiveCategory.sources.map((item) => (
+                <SelectItem key={item} value={String(item)}>
+                  {item}: {sourceLabel(effectiveCategory.id, item, t)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function resultNumber(values?: XvfValue[]): number | null {
   const value = values?.[0];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function numericAt(values: XvfValue[], index: number): number | null {
+  const value = values[index];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function sourceLabel(category: number, source: number, t: (key: string) => string): string {
+  if (category === 6 && source === 3) return t("xvf.audio.outputRoute.autoSelectBeam");
+  if (category === 8) return t("xvf.audio.outputRoute.userChannel");
+  return t("xvf.audio.outputRoute.sourceIndex");
 }
 
 function normalizeValue(def: NumericControlDef, value: number): number {
