@@ -77,6 +77,36 @@ pnpm release:version
 
 GitHub Actions 会在收到 `v*` 标签后触发。
 
+## 不发布 Release 的情况下测试发布工作流
+
+当你想验证最新代码的 CI/CD 发布构建，但不想创建 GitHub Release，也不想影响更新端点时，可以使用工作流的 dry run 模式。
+
+1. 将要测试的代码推送到 GitHub。可以使用临时分支：
+
+   ```bash
+   git checkout -b ci-dry-run
+   git push -u origin ci-dry-run
+   ```
+
+2. 打开 GitHub 仓库，进入 Actions -> publish -> Run workflow。
+3. 选择刚推送的分支。
+4. 保持 `dry_run` 开启。
+5. 运行工作流。
+6. 确认所有构建矩阵任务都成功完成：
+   - `macos-universal`
+   - `linux-x64`
+   - `linux-arm64`
+   - `windows-x64`
+7. 下载并检查工作流产物：
+   - `release-assets-macos-universal`
+   - `release-assets-linux-x86_64`
+   - `release-assets-linux-arm64`
+   - `release-assets-windows-x64`
+
+在 dry run 模式下，构建产物会使用临时的 `ci-<sha>` 版本标签，并且会跳过 `publish-release` 任务，避免意外创建名为 `main` 或分支名的 GitHub Release。
+
+dry run 仍然需要配置 Tauri 签名 Secrets，因为发布构建会对更新产物进行签名。
+
 ## 步骤 5：验证发布产物
 
 GitHub Actions 完成后，确认最新已发布 Release 中包含以下更新相关资源：

@@ -77,6 +77,36 @@ Then it:
 
 The GitHub Actions workflow is triggered by `v*` tags.
 
+## Test the Release Workflow Without Publishing
+
+Use the workflow dry run when you want to validate the latest CI/CD release build without creating a GitHub Release or changing the updater endpoint.
+
+1. Push the code you want to test to GitHub. A temporary branch is fine:
+
+   ```bash
+   git checkout -b ci-dry-run
+   git push -u origin ci-dry-run
+   ```
+
+2. Open the GitHub repository and go to Actions -> publish -> Run workflow.
+3. Select the branch you pushed.
+4. Keep `dry_run` enabled.
+5. Run the workflow.
+6. Verify that all build matrix jobs finish successfully:
+   - `macos-universal`
+   - `linux-x64`
+   - `linux-arm64`
+   - `windows-x64`
+7. Download and inspect the workflow artifacts:
+   - `release-assets-macos-universal`
+   - `release-assets-linux-x86_64`
+   - `release-assets-linux-arm64`
+   - `release-assets-windows-x64`
+
+In dry-run mode, the build artifacts use a temporary `ci-<sha>` version label and the `publish-release` job is skipped. This prevents accidental creation of a `main` or branch-named GitHub Release.
+
+Dry runs still require the Tauri signing secrets because the release build signs updater artifacts.
+
 ## Step 5: Verify the Published Assets
 
 After GitHub Actions finishes, verify that the latest published release contains updater assets such as:
