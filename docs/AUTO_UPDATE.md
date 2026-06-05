@@ -39,9 +39,26 @@ Keep the private key secret.
 
 Add the following secrets to your GitHub repository under Settings → Secrets and variables → Actions:
 
+Updater signing secrets:
+
 1. `TAURI_SIGNING_PRIVATE_KEY` - Content of `~/.tauri/respeaker-console.key`
 2. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` - Password you set, if any
 3. `TAURI_SIGNING_PUBLIC_KEY` - Public key generated in Step 1
+
+macOS signing and notarization secrets:
+
+1. `APPLE_CERTIFICATE` - Base64-encoded Developer ID Application `.p12` certificate
+2. `APPLE_CERTIFICATE_PASSWORD` - Password used when exporting the `.p12` certificate
+3. `APPLE_ID` - Apple Developer account email
+4. `APPLE_PASSWORD` - Apple app-specific password
+5. `APPLE_TEAM_ID` - Apple Developer Team ID
+6. `KEYCHAIN_PASSWORD` - Random password for the temporary CI keychain
+
+Do not commit the `.p12` certificate to the repository. Encode it locally and copy the generated text into the `APPLE_CERTIFICATE` secret:
+
+```bash
+base64 -w 0 Certificates.p12 > certificate-base64.txt
+```
 
 ## Step 3: Keep Version Files in Sync
 
@@ -105,7 +122,7 @@ Use the workflow dry run when you want to validate the latest CI/CD release buil
 
 In dry-run mode, the build artifacts use a temporary `ci-<sha>` version label and the `publish-release` job is skipped. This prevents accidental creation of a `main` or branch-named GitHub Release.
 
-Dry runs still require the Tauri signing secrets because the release build signs updater artifacts.
+Dry runs still require the Tauri signing secrets because the release build signs updater artifacts. The macOS matrix job also requires the Apple signing and notarization secrets.
 
 ## Step 5: Verify the Published Assets
 

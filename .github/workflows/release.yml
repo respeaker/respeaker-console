@@ -153,6 +153,43 @@ jobs:
             exit 1
           fi
 
+      - name: Validate macOS signing and notarization secrets
+        if: matrix.os == 'macos'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPLE_CERTIFICATE}" ]; then
+            echo "::error::Missing APPLE_CERTIFICATE secret. Set it to the base64-encoded .p12 certificate."
+            exit 1
+          fi
+          if [ -z "${APPLE_CERTIFICATE_PASSWORD}" ]; then
+            echo "::error::Missing APPLE_CERTIFICATE_PASSWORD secret. Set it to the exported .p12 password."
+            exit 1
+          fi
+          if [ -z "${APPLE_ID}" ]; then
+            echo "::error::Missing APPLE_ID secret. Set it to the Apple Developer account email."
+            exit 1
+          fi
+          if [ -z "${APPLE_PASSWORD}" ]; then
+            echo "::error::Missing APPLE_PASSWORD secret. Use an Apple app-specific password."
+            exit 1
+          fi
+          if [ -z "${APPLE_TEAM_ID}" ]; then
+            echo "::error::Missing APPLE_TEAM_ID secret. Set it to the Apple Developer Team ID."
+            exit 1
+          fi
+          if [ -z "${KEYCHAIN_PASSWORD}" ]; then
+            echo "::error::Missing KEYCHAIN_PASSWORD secret. Set it to a random temporary keychain password."
+            exit 1
+          fi
+
       - name: Build Tauri App (macOS)
         if: matrix.os == 'macos'
         shell: bash
@@ -160,6 +197,12 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
 
       - name: Build Tauri App (Windows)
         if: matrix.os == 'windows'

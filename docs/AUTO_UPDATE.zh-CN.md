@@ -39,9 +39,26 @@ pnpm tauri signer generate -w ~/.tauri/respeaker-console.key
 
 在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加以下 Secrets：
 
+更新签名 Secrets：
+
 1. `TAURI_SIGNING_PRIVATE_KEY` - `~/.tauri/respeaker-console.key` 的内容
 2. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` - 你设置的密码（如果有）
 3. `TAURI_SIGNING_PUBLIC_KEY` - 第 1 步生成的公钥
+
+macOS 签名与 notarization Secrets：
+
+1. `APPLE_CERTIFICATE` - Base64 编码后的 Developer ID Application `.p12` 证书
+2. `APPLE_CERTIFICATE_PASSWORD` - 导出 `.p12` 证书时设置的密码
+3. `APPLE_ID` - Apple Developer 账号邮箱
+4. `APPLE_PASSWORD` - Apple app-specific password
+5. `APPLE_TEAM_ID` - Apple Developer Team ID
+6. `KEYCHAIN_PASSWORD` - CI 临时 keychain 使用的随机密码
+
+不要将 `.p12` 证书提交到仓库。请在本地编码后，将生成的文本复制到 `APPLE_CERTIFICATE` Secret：
+
+```bash
+base64 -w 0 Certificates.p12 > certificate-base64.txt
+```
 
 ## 步骤 3：保持版本文件一致
 
@@ -105,7 +122,7 @@ GitHub Actions 会在收到 `v*` 标签后触发。
 
 在 dry run 模式下，构建产物会使用临时的 `ci-<sha>` 版本标签，并且会跳过 `publish-release` 任务，避免意外创建名为 `main` 或分支名的 GitHub Release。
 
-dry run 仍然需要配置 Tauri 签名 Secrets，因为发布构建会对更新产物进行签名。
+dry run 仍然需要配置 Tauri 签名 Secrets，因为发布构建会对更新产物进行签名。macOS 矩阵任务还需要 Apple 签名与 notarization Secrets。
 
 ## 步骤 5：验证发布产物
 
