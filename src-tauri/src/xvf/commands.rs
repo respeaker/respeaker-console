@@ -135,7 +135,10 @@ fn dfu_hint() -> Option<String> {
     }
     #[cfg(target_os = "macos")]
     {
-        return Some("Install dfu-util with Homebrew or MacPorts and keep it on PATH.".to_string());
+        return Some(
+            "Install dfu-util with Homebrew or MacPorts. Common paths: /opt/homebrew/bin/dfu-util, /usr/local/bin/dfu-util, /opt/local/bin/dfu-util."
+                .to_string(),
+        );
     }
     #[cfg(target_os = "windows")]
     {
@@ -146,6 +149,34 @@ fn dfu_hint() -> Option<String> {
 }
 
 fn resolve_dfu_util() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let bundled = dir.join("dfu-util");
+                if bundled.exists() {
+                    return bundled;
+                }
+            }
+        }
+
+        for candidate in [
+            "/opt/homebrew/bin/dfu-util",
+            "/opt/homebrew/opt/dfu-util/bin/dfu-util",
+            "/usr/local/bin/dfu-util",
+            "/usr/local/opt/dfu-util/bin/dfu-util",
+            "/opt/local/bin/dfu-util",
+            "/opt/local/sbin/dfu-util",
+        ] {
+            let path = PathBuf::from(candidate);
+            if path.exists() {
+                return path;
+            }
+        }
+
+        return PathBuf::from("dfu-util");
+    }
+
     #[cfg(target_os = "windows")]
     {
         if let Ok(exe) = std::env::current_exe() {
@@ -163,7 +194,7 @@ fn resolve_dfu_util() -> PathBuf {
         return PathBuf::from("dfu-util.exe");
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     {
         PathBuf::from("dfu-util")
     }
