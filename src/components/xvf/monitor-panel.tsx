@@ -251,11 +251,9 @@ const StatCard = memo(function StatCard({
 }) {
   return (
     <div className="border p-3">
-      <div className="text-muted-foreground/60 text-[10px] font-medium tracking-widest uppercase">
-        {label}
-      </div>
+      <div className="text-muted-foreground text-xs font-normal">{label}</div>
       <div
-        className={`mt-1.5 font-mono text-lg tabular-nums ${accent === "primary" ? "text-foreground" : "text-muted-foreground"}`}
+        className={`mt-1.5 text-lg font-medium tabular-nums ${accent === "primary" ? "text-foreground" : "text-muted-foreground"}`}
       >
         {value}
       </div>

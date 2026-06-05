@@ -91,7 +91,10 @@ export function ConfigPanel({ xvf }: Props) {
     return map;
   }, [commands]);
 
-  const activeParams = commandsByCategory.get(activeCategory) ?? [];
+  const activeParams = useMemo(
+    () => commandsByCategory.get(activeCategory) ?? [],
+    [activeCategory, commandsByCategory]
+  );
 
   const filteredParams = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -490,7 +493,7 @@ export function ConfigPanel({ xvf }: Props) {
             return (
               <div
                 key={param.name}
-                className="hover:bg-muted/30 grid grid-cols-[220px_190px_240px_110px_minmax(260px,1fr)] items-center gap-3 border-b px-4 py-2.5 text-sm"
+                className="hover:bg-muted/30 grid grid-cols-[220px_190px_240px_110px_minmax(260px,1fr)] items-center gap-3 border-b px-4 py-2.5 text-sm font-normal"
               >
                 <div className="min-w-0">
                   <div className="truncate font-mono text-xs font-semibold" title={param.name}>
@@ -510,7 +513,7 @@ export function ConfigPanel({ xvf }: Props) {
                 </div>
 
                 <div
-                  className="text-muted-foreground truncate font-mono text-xs"
+                  className="text-muted-foreground truncate font-mono text-xs font-[400]"
                   title={currentText}
                 >
                   {currentText}
@@ -524,7 +527,7 @@ export function ConfigPanel({ xvf }: Props) {
                   placeholder={isReadOnly ? t("xvf.config.readOnly") : t("xvf.config.newValue")}
                   disabled={!current || isReadOnly}
                   aria-label={`${param.name} ${t("xvf.config.newValue")}`}
-                  className="h-8 font-mono text-xs"
+                  className="h-8 font-mono text-xs font-[400]"
                 />
 
                 <div className="flex items-center gap-1.5">
@@ -549,7 +552,10 @@ export function ConfigPanel({ xvf }: Props) {
                   </Button>
                 </div>
 
-                <div className="text-muted-foreground truncate text-xs" title={param.description}>
+                <div
+                  className="text-muted-foreground truncate text-xs font-[400]"
+                  title={param.description}
+                >
                   {param.description}
                 </div>
               </div>
