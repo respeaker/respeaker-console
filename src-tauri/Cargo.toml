@@ -1,6 +1,6 @@
 [package]
 name = "respeaker-console"
-version = "1.0.5"
+version = "0.1.5"
 description = "ReSpeaker Console - Desktop control app for XVF3800"
 authors = ["Wkstr"]
 edition = "2021"
