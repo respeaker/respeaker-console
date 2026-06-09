@@ -235,11 +235,24 @@ jobs:
         if: matrix.os == 'windows'
         shell: pwsh
         run: |
-          if (-not (Test-Path "src-tauri/resources/windows/dfu-util/dfu-util.exe")) {
-            throw "Missing bundled dfu-util.exe"
-          }
-          if (-not (Test-Path "src-tauri/resources/windows/dfu-util/libusb-1.0.dll")) {
-            throw "Missing bundled libusb-1.0.dll"
+          $requiredDfuFiles = @(
+            "dfu-prefix.exe",
+            "dfu-suffix.exe",
+            "dfu-util.exe",
+            "dfu-util-static.exe",
+            "lsusb.exe",
+            "lsusb-static.exe",
+            "libusb-1.0.a",
+            "libusb-1.0.dll",
+            "libusb-1.0.dll.a",
+            "libusb-1.0.la"
+          )
+
+          foreach ($file in $requiredDfuFiles) {
+            $path = Join-Path "src-tauri/resources/windows/dfu-util" $file
+            if (-not (Test-Path $path)) {
+              throw "Missing bundled Windows dfu-util resource: $file"
+            }
           }
 
       - name: Build Tauri App (Linux)
