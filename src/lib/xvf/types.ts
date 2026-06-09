@@ -36,7 +36,7 @@ export interface LogEvent {
   timestamp: string;
 }
 
-export type DfuOutputStream = "stdout" | "stderr" | "status";
+export type DfuOutputStream = "stdout" | "stderr" | "warning" | "status";
 
 export interface DfuOutputEvent {
   stream: DfuOutputStream;

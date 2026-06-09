@@ -108,6 +108,18 @@ pub struct DfuOutputEvent {
     pub timestamp: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DfuTarget {
+    vid: u16,
+    pid: u16,
+}
+
+impl DfuTarget {
+    fn filter(&self) -> String {
+        format!("{:04x}:{:04x}", self.vid, self.pid)
+    }
+}
+
 fn emit_log(app: &AppHandle, level: &str, message: String) {
     log::info!("[xvf:log][{}] {}", level, message);
     let evt = LogEvent {
@@ -125,6 +137,65 @@ fn emit_dfu_output(app: &AppHandle, stream: &str, line: String) {
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
     let _ = app.emit("xvf://dfu-output", &event);
+}
+
+fn is_dfu_suffix_warning(line: &str) -> bool {
+    line.contains("Invalid DFU suffix signature")
+        || line.contains("A valid DFU suffix will be required")
+}
+
+fn dfu_stderr_stream(line: &str) -> &'static str {
+    if is_dfu_suffix_warning(line) {
+        "warning"
+    } else {
+        "stderr"
+    }
+}
+
+fn parse_dfu_target_line(line: &str) -> Option<DfuTarget> {
+    if !line.contains("Found DFU:") {
+        return None;
+    }
+
+    let bracket_start = line.find('[')?;
+    let bracket_end = line[bracket_start + 1..].find(']')? + bracket_start + 1;
+    let id = &line[bracket_start + 1..bracket_end];
+    let (vid_hex, pid_hex) = id.split_once(':')?;
+    let vid = u16::from_str_radix(vid_hex, 16).ok()?;
+    let pid = u16::from_str_radix(pid_hex, 16).ok()?;
+
+    if vid == DEFAULT_VID {
+        Some(DfuTarget { vid, pid })
+    } else {
+        None
+    }
+}
+
+fn parse_dfu_targets(output: &str) -> Vec<DfuTarget> {
+    let mut targets = Vec::new();
+    for line in output.lines() {
+        if let Some(target) = parse_dfu_target_line(line) {
+            if !targets.contains(&target) {
+                targets.push(target);
+            }
+        }
+    }
+    targets
+}
+
+fn single_dfu_target(output: &str) -> Result<DfuTarget, String> {
+    let targets = parse_dfu_targets(output);
+    match targets.as_slice() {
+        [target] => Ok(target.clone()),
+        [] => Err(format!(
+            "No target DFU device found for VID 0x{:04x}",
+            DEFAULT_VID
+        )),
+        _ => Err(format!(
+            "Multiple target DFU devices found for VID 0x{:04x}; disconnect all but one before flashing",
+            DEFAULT_VID
+        )),
+    }
 }
 
 fn dfu_hint() -> Option<String> {
@@ -517,19 +588,22 @@ pub fn xvf_check_dfu_util(app: AppHandle) -> Result<DfuCheckResult, String> {
     match list {
         Ok(output) => {
             let list_output = combine_output(&output.stdout, &output.stderr);
-            let available = output.status.success() || !list_output.is_empty();
-            if available {
-                emit_log(
+            let target = if output.status.success() {
+                single_dfu_target(&list_output)
+            } else {
+                Err(format!(
+                    "dfu-util list failed with status {}",
+                    output.status
+                ))
+            };
+            let available = target.is_ok();
+            match target {
+                Ok(target) => emit_log(
                     &app,
                     "info",
-                    format!("dfu-util found: {}", executable_display),
-                );
-            } else {
-                emit_log(
-                    &app,
-                    "warn",
-                    "dfu-util did not return device list output".into(),
-                );
+                    format!("dfu-util found target device {}", target.filter()),
+                ),
+                Err(error) => emit_log(&app, "warn", error),
             }
 
             Ok(DfuCheckResult {
@@ -558,6 +632,41 @@ pub fn xvf_flash_firmware(app: AppHandle, path: String) -> Result<(), String> {
     let executable = resolve_dfu_util(&app);
     let executable_display = executable.to_string_lossy().to_string();
 
+    {
+        let mut guard = CURRENT_DEVICE
+            .lock()
+            .map_err(|e| format!("lock poisoned: {}", e))?;
+        if guard.take().is_some() {
+            emit_log(
+                &app,
+                "info",
+                "Closed current USB device before firmware flashing".into(),
+            );
+        }
+    }
+
+    let list_output = Command::new(&executable)
+        .arg("-l")
+        .output()
+        .map_err(|error| {
+            let message = format!("Failed to list DFU devices: {}", error);
+            emit_log(&app, "error", message.clone());
+            message
+        })?;
+    let list_text = combine_output(&list_output.stdout, &list_output.stderr);
+    if !list_output.status.success() {
+        let message = format!("dfu-util list failed with status {}", list_output.status);
+        emit_dfu_output(&app, "status", message.clone());
+        emit_log(&app, "error", message.clone());
+        return Err(message);
+    }
+    let dfu_target = single_dfu_target(&list_text).map_err(|error| {
+        emit_dfu_output(&app, "status", error.clone());
+        emit_log(&app, "error", error.clone());
+        error
+    })?;
+    let dfu_filter = dfu_target.filter();
+
     emit_log(
         &app,
         "info",
@@ -566,11 +675,14 @@ pub fn xvf_flash_firmware(app: AppHandle, path: String) -> Result<(), String> {
     emit_dfu_output(
         &app,
         "status",
-        format!("Running {} -R -e -a 1 -D {}", executable_display, path),
+        format!(
+            "Running {} -d {} -R -e -a 1 -D {}",
+            executable_display, dfu_filter, path
+        ),
     );
 
     let mut child = Command::new(&executable)
-        .args(["-R", "-e", "-a", "1", "-D"])
+        .args(["-d", dfu_filter.as_str(), "-R", "-e", "-a", "1", "-D"])
         .arg(&path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -594,7 +706,8 @@ pub fn xvf_flash_firmware(app: AppHandle, path: String) -> Result<(), String> {
         let app = app.clone();
         handles.push(thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                emit_dfu_output(&app, "stderr", line);
+                let stream = dfu_stderr_stream(&line);
+                emit_dfu_output(&app, stream, line);
             }
         }));
     }

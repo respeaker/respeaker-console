@@ -21,6 +21,39 @@ pub const USB_TIMEOUT: Duration = Duration::from_millis(5000);
 pub const CONTROL_SUCCESS: u8 = 0;
 pub const SERVICER_COMMAND_RETRY: u8 = 64;
 pub const MAX_READ_RETRY: u32 = 100;
+const DFU_CLASS: u8 = 0xfe;
+const DFU_SUBCLASS: u8 = 0x01;
+const DFU_MODE_PROTOCOL: u8 = 0x02;
+
+pub fn is_dfu_bootloader_device<T: UsbContext>(
+    device: &Device<T>,
+    descriptor: &rusb::DeviceDescriptor,
+) -> bool {
+    if descriptor.class_code() == DFU_CLASS
+        && descriptor.sub_class_code() == DFU_SUBCLASS
+        && descriptor.protocol_code() == DFU_MODE_PROTOCOL
+    {
+        return true;
+    }
+
+    for index in 0..descriptor.num_configurations() {
+        let Ok(config) = device.config_descriptor(index) else {
+            continue;
+        };
+        for interface in config.interfaces() {
+            for interface_descriptor in interface.descriptors() {
+                if interface_descriptor.class_code() == DFU_CLASS
+                    && interface_descriptor.sub_class_code() == DFU_SUBCLASS
+                    && interface_descriptor.protocol_code() == DFU_MODE_PROTOCOL
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
 
 #[derive(Clone, Debug)]
 pub struct DeviceDescriptor {
@@ -85,6 +118,9 @@ pub fn list_devices_with_vid(vid: u16) -> Result<Vec<DeviceDescriptor>, XvfError
         if descriptor.vendor_id() != vid {
             continue;
         }
+        if is_dfu_bootloader_device(&device, &descriptor) {
+            continue;
+        }
         let (manufacturer, product, serial) = read_strings(&device, &descriptor);
         out.push(DeviceDescriptor {
             vid: descriptor.vendor_id(),
@@ -142,6 +178,9 @@ impl XvfDevice {
                 Err(_) => continue,
             };
             if d.vendor_id() != vid {
+                continue;
+            }
+            if is_dfu_bootloader_device(&device, &d) {
                 continue;
             }
             if let Some(pid) = pid {

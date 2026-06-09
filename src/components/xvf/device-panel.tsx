@@ -496,6 +496,7 @@ export function DevicePanel({ xvf }: Props) {
                         key={entry.id}
                         className={cn(
                           entry.stream === "stderr" && "text-destructive",
+                          entry.stream === "warning" && "text-amber-600 dark:text-amber-300",
                           entry.stream === "status" && "text-primary"
                         )}
                       >

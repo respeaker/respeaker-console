@@ -255,7 +255,7 @@ export async function mockCheckDfuUtil(): Promise<DfuCheckResult> {
     available: true,
     executable: "dfu-util",
     versionOutput: "dfu-util 0.11 (mock)",
-    listOutput: "Found DFU: [2886:0018] ver=0200, devnum=1, cfg=1, intf=0, path=mock",
+    listOutput: "Found DFU: [2886:001a] ver=0200, devnum=1, cfg=1, intf=0, path=mock",
     hint: null,
   };
 }
@@ -267,6 +267,7 @@ export async function mockFlashFirmware(path: string): Promise<void> {
     emitDfu("stdout", line);
     await new Promise((resolve) => window.setTimeout(resolve, 200));
   }
+  emitDfu("warning", "Warning: Invalid DFU suffix signature");
   emitDfu("status", "Mock firmware flashing completed successfully");
   emit("info", "Mock: firmware flashing completed");
 }
