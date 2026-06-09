@@ -63,6 +63,7 @@ export interface UseXvfResult {
   selectDevice: (path: string) => Promise<void>;
   connect: (path: string) => Promise<void>;
   disconnect: () => Promise<void>;
+  releaseDevice: () => Promise<void>;
   reboot: () => Promise<void>;
   checkDfuUtil: () => Promise<DfuCheckResult | null>;
   flashFirmware: (path: string) => Promise<boolean>;
@@ -128,6 +129,12 @@ export function useXvf(): UseXvfResult {
 
   const clearLogs = useCallback(() => setLogs([]), []);
   const clearDfuOutputs = useCallback(() => setDfuOutputs([]), []);
+
+  const clearRuntimeState = useCallback(() => {
+    setCurrent(null);
+    setArrayType("circular");
+    setFirmwareMetadata(null);
+  }, []);
 
   const probeFirmwareMetadata = useCallback(async (): Promise<FirmwareMetadata | null> => {
     try {
@@ -248,7 +255,11 @@ export function useXvf(): UseXvfResult {
           const withP = withPath(existing);
           setCurrent(withP);
           setSelectedPath(withP.path);
-          await probeFirmwareMetadata();
+          if (!withP.isDfu) {
+            await probeFirmwareMetadata();
+          } else {
+            setFirmwareMetadata(null);
+          }
         }
       } catch (e) {
         pushLog("warn", `Current device probe failed: ${errorMessage(e)}`);
@@ -283,11 +294,16 @@ export function useXvf(): UseXvfResult {
         const withP = withPath(info);
         setCurrent(withP);
         setSelectedPath(withP.path);
-        const metadata = await probeFirmwareMetadata();
-        if (metadata?.build?.arrayType) {
-          pushLog("info", `Detected ${metadata.build.arrayType} microphone array`);
-        } else {
+        if (withP.isDfu) {
+          setFirmwareMetadata(null);
           setArrayType("circular");
+        } else {
+          const metadata = await probeFirmwareMetadata();
+          if (metadata?.build?.arrayType) {
+            pushLog("info", `Detected ${metadata.build.arrayType} microphone array`);
+          } else {
+            setArrayType("circular");
+          }
         }
         pushLog("info", `Connected to ${info.product ?? "device"} (${info.vidHex}:${info.pidHex})`);
       } catch (e) {
@@ -305,9 +321,7 @@ export function useXvf(): UseXvfResult {
     setLoading(true);
     try {
       await xvf.disconnect();
-      setCurrent(null);
-      setArrayType("circular");
-      setFirmwareMetadata(null);
+      clearRuntimeState();
       pushLog("info", "Disconnected");
     } catch (e) {
       const msg = errorMessage(e);
@@ -316,15 +330,28 @@ export function useXvf(): UseXvfResult {
     } finally {
       setLoading(false);
     }
-  }, [pushLog]);
+  }, [clearRuntimeState, pushLog]);
+
+  const releaseDevice = useCallback(async () => {
+    try {
+      await xvf.releaseDevice();
+      clearRuntimeState();
+    } catch (e) {
+      const msg = errorMessage(e);
+      setError(msg);
+      pushLog("error", `Release device failed: ${msg}`);
+    }
+  }, [clearRuntimeState, pushLog]);
 
   const reboot = useCallback(async () => {
+    if (current?.isDfu) {
+      pushLog("warn", "Reboot is unavailable while the connected device is in DFU mode");
+      return;
+    }
     setLoading(true);
     try {
       await xvf.reboot();
-      setCurrent(null);
-      setArrayType("circular");
-      setFirmwareMetadata(null);
+      clearRuntimeState();
       pushLog("warn", "Reboot command sent; USB connection closed");
       // Refresh after short delay so renumeration finishes.
       setTimeout(() => {
@@ -337,11 +364,12 @@ export function useXvf(): UseXvfResult {
     } finally {
       setLoading(false);
     }
-  }, [pushLog, refreshDevices]);
+  }, [clearRuntimeState, current?.isDfu, pushLog, refreshDevices]);
 
   const checkDfuUtil = useCallback(async (): Promise<DfuCheckResult | null> => {
     try {
       const result = await xvf.checkDfuUtil();
+      clearRuntimeState();
       pushLog(
         result.available ? "info" : "warn",
         result.available ? `dfu-util ready: ${result.executable}` : "dfu-util is not available"
@@ -353,7 +381,7 @@ export function useXvf(): UseXvfResult {
       pushLog("error", `dfu-util check failed: ${msg}`);
       return null;
     }
-  }, [pushLog]);
+  }, [clearRuntimeState, pushLog]);
 
   const flashFirmware = useCallback(
     async (path: string): Promise<boolean> => {
@@ -361,9 +389,7 @@ export function useXvf(): UseXvfResult {
       try {
         await xvf.flashFirmware(path);
         pushLog("info", "Firmware flashing completed");
-        setCurrent(null);
-        setArrayType("circular");
-        setFirmwareMetadata(null);
+        clearRuntimeState();
         setTimeout(() => {
           void refreshDevices();
         }, 1200);
@@ -375,11 +401,14 @@ export function useXvf(): UseXvfResult {
         return false;
       }
     },
-    [clearDfuOutputs, pushLog, refreshDevices]
+    [clearDfuOutputs, clearRuntimeState, pushLog, refreshDevices]
   );
 
   const read = useCallback(
     async (name: string): Promise<ReadResult | null> => {
+      if (current?.isDfu) {
+        return null;
+      }
       try {
         const values = await xvf.readParameter(name);
         return { values };
@@ -388,11 +417,14 @@ export function useXvf(): UseXvfResult {
         return null;
       }
     },
-    [pushLog]
+    [current?.isDfu, pushLog]
   );
 
   const write = useCallback(
     async (name: string, values: XvfValue[]): Promise<boolean> => {
+      if (current?.isDfu) {
+        return false;
+      }
       try {
         await xvf.writeParameter(name, values);
         pushLog("info", `${name} = ${formatValues(values)}`);
@@ -402,22 +434,26 @@ export function useXvf(): UseXvfResult {
         return false;
       }
     },
-    [pushLog]
+    [current?.isDfu, pushLog]
   );
 
-  const readMany = useCallback(async (names: string[]) => {
-    if (names.length === 0) return {};
-    try {
-      const results: ReadManyResult[] = await xvf.readMany(names);
-      const out: Record<string, ReadResult> = {};
-      for (const r of results) {
-        if (r.ok) out[r.name] = { values: r.values };
+  const readMany = useCallback(
+    async (names: string[]) => {
+      if (names.length === 0) return {};
+      if (current?.isDfu) return {};
+      try {
+        const results: ReadManyResult[] = await xvf.readMany(names);
+        const out: Record<string, ReadResult> = {};
+        for (const r of results) {
+          if (r.ok) out[r.name] = { values: r.values };
+        }
+        return out;
+      } catch {
+        return {};
       }
-      return out;
-    } catch {
-      return {};
-    }
-  }, []);
+    },
+    [current?.isDfu]
+  );
 
   return {
     devices,
@@ -431,6 +467,7 @@ export function useXvf(): UseXvfResult {
     selectDevice,
     connect,
     disconnect,
+    releaseDevice,
     reboot,
     checkDfuUtil,
     flashFirmware,

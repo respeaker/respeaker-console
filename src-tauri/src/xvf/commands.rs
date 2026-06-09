@@ -40,6 +40,8 @@ pub struct DeviceInfoDto {
     pub vid_hex: String,
     #[serde(rename = "pidHex")]
     pub pid_hex: String,
+    #[serde(rename = "isDfu")]
+    pub is_dfu: bool,
 }
 
 impl From<&DeviceDescriptor> for DeviceInfoDto {
@@ -54,6 +56,7 @@ impl From<&DeviceDescriptor> for DeviceInfoDto {
             serial: d.serial.clone(),
             vid_hex: format!("0x{:04x}", d.vid),
             pid_hex: format!("0x{:04x}", d.pid),
+            is_dfu: d.is_dfu,
         }
     }
 }
@@ -112,6 +115,7 @@ pub struct DfuOutputEvent {
 struct DfuTarget {
     vid: u16,
     pid: u16,
+    physical_id: Option<String>,
 }
 
 impl DfuTarget {
@@ -165,9 +169,32 @@ fn parse_dfu_target_line(line: &str) -> Option<DfuTarget> {
     let pid = u16::from_str_radix(pid_hex, 16).ok()?;
 
     if vid == DEFAULT_VID {
-        Some(DfuTarget { vid, pid })
+        Some(DfuTarget {
+            vid,
+            pid,
+            physical_id: dfu_field(line, "path").or_else(|| dfu_field(line, "devnum")),
+        })
     } else {
         None
+    }
+}
+
+fn dfu_field(line: &str, field: &str) -> Option<String> {
+    let marker = format!("{}=", field);
+    let start = line.find(&marker)? + marker.len();
+    let rest = &line[start..];
+
+    if let Some(quoted) = rest.strip_prefix('"') {
+        let end = quoted.find('"')?;
+        return Some(quoted[..end].to_string());
+    }
+
+    let end = rest.find(',').unwrap_or(rest.len());
+    let value = rest[..end].trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
     }
 }
 
@@ -196,6 +223,16 @@ fn single_dfu_target(output: &str) -> Result<DfuTarget, String> {
             DEFAULT_VID
         )),
     }
+}
+
+fn release_current_device(app: &AppHandle, message: &str) -> Result<(), String> {
+    let mut guard = CURRENT_DEVICE
+        .lock()
+        .map_err(|e| format!("lock poisoned: {}", e))?;
+    if guard.take().is_some() {
+        emit_log(app, "info", message.to_string());
+    }
+    Ok(())
 }
 
 fn dfu_hint() -> Option<String> {
@@ -429,13 +466,12 @@ pub fn xvf_connect(app: AppHandle, args: ConnectArgs) -> Result<DeviceInfoDto, S
 
 #[tauri::command]
 pub fn xvf_disconnect(app: AppHandle) -> Result<(), String> {
-    let mut guard = CURRENT_DEVICE
-        .lock()
-        .map_err(|e| format!("lock poisoned: {}", e))?;
-    if guard.take().is_some() {
-        emit_log(&app, "info", "Disconnected from device".into());
-    }
-    Ok(())
+    release_current_device(&app, "Disconnected from device")
+}
+
+#[tauri::command]
+pub fn xvf_release_device(app: AppHandle) -> Result<(), String> {
+    release_current_device(&app, "Released current USB device handle")
 }
 
 #[tauri::command]
@@ -575,6 +611,8 @@ pub fn xvf_reboot_device(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn xvf_check_dfu_util(app: AppHandle) -> Result<DfuCheckResult, String> {
+    release_current_device(&app, "Closed current USB device before dfu-util check")?;
+
     let executable = resolve_dfu_util(&app);
     let executable_display = executable.to_string_lossy().to_string();
 
@@ -632,18 +670,7 @@ pub fn xvf_flash_firmware(app: AppHandle, path: String) -> Result<(), String> {
     let executable = resolve_dfu_util(&app);
     let executable_display = executable.to_string_lossy().to_string();
 
-    {
-        let mut guard = CURRENT_DEVICE
-            .lock()
-            .map_err(|e| format!("lock poisoned: {}", e))?;
-        if guard.take().is_some() {
-            emit_log(
-                &app,
-                "info",
-                "Closed current USB device before firmware flashing".into(),
-            );
-        }
-    }
+    release_current_device(&app, "Closed current USB device before firmware flashing")?;
 
     let list_output = Command::new(&executable)
         .arg("-l")

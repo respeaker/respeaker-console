@@ -20,6 +20,7 @@ import {
   mockOnLog,
   mockRead,
   mockReadMany,
+  mockReleaseDevice,
   mockReboot,
   mockWrite,
 } from "./mock";
@@ -54,6 +55,11 @@ export async function connect(args: ConnectArgs = {}): Promise<DeviceInfo> {
 export async function disconnect(): Promise<void> {
   if (isMockEnv()) return mockDisconnect();
   return invoke("xvf_disconnect");
+}
+
+export async function releaseDevice(): Promise<void> {
+  if (isMockEnv()) return mockReleaseDevice();
+  return invoke("xvf_release_device");
 }
 
 export async function currentDevice(): Promise<DeviceInfo | null> {

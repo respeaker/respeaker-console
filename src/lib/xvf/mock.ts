@@ -38,6 +38,19 @@ const STATE: {
       serial: "SIM-XVF3800-0001",
       vidHex: "0x2886",
       pidHex: "0x0018",
+      isDfu: false,
+    },
+    {
+      vid: 0x2886,
+      pid: 0x001a,
+      bus: 20,
+      address: 4,
+      manufacturer: "Seeed Studio",
+      product: "reSpeaker XVF3800 Bootloader (Simulated)",
+      serial: "SIM-XVF3800-DFU",
+      vidHex: "0x2886",
+      pidHex: "0x001a",
+      isDfu: true,
     },
   ],
   current: null,
@@ -110,6 +123,13 @@ function requireConnected(): void {
   }
 }
 
+function requireRuntime(): void {
+  requireConnected();
+  if (STATE.current?.isDfu) {
+    throw new Error("Device is in DFU mode; runtime parameter IO is unavailable");
+  }
+}
+
 export function isMockEnv(): boolean {
   if (typeof window === "undefined") return true;
   // Tauri v2 exposes `__TAURI_INTERNALS__` on the window object in the webview.
@@ -150,8 +170,10 @@ export async function mockConnect(args: ConnectArgs): Promise<DeviceInfo> {
   );
   if (!dev) throw new Error(`No device found for vid=0x${vid.toString(16)}`);
   STATE.current = dev;
-  const params = await mockListCommands();
-  ensureValues(params);
+  if (!dev.isDfu) {
+    const params = await mockListCommands();
+    ensureValues(params);
+  }
   emit("info", `Mock: connected to ${dev.product ?? "device"}`);
   return dev;
 }
@@ -163,12 +185,19 @@ export async function mockDisconnect(): Promise<void> {
   STATE.current = null;
 }
 
+export async function mockReleaseDevice(): Promise<void> {
+  if (STATE.current) {
+    emit("info", "Mock: released device handle");
+  }
+  STATE.current = null;
+}
+
 export async function mockCurrentDevice(): Promise<DeviceInfo | null> {
   return STATE.current;
 }
 
 export async function mockRead(name: string): Promise<XvfValue[]> {
-  requireConnected();
+  requireRuntime();
   const { getParameter } = await import("./catalog");
   const p = getParameter(name);
   if (!p) throw new Error(`Unknown parameter: ${name}`);
@@ -203,7 +232,7 @@ export async function mockRead(name: string): Promise<XvfValue[]> {
 }
 
 export async function mockWrite(name: string, values: XvfValue[]): Promise<void> {
-  requireConnected();
+  requireRuntime();
   const { getParameter } = await import("./catalog");
   const p = getParameter(name);
   if (!p) throw new Error(`Unknown parameter: ${name}`);
@@ -250,6 +279,7 @@ export async function mockReboot(): Promise<void> {
 }
 
 export async function mockCheckDfuUtil(): Promise<DfuCheckResult> {
+  await mockReleaseDevice();
   emit("info", "Mock: dfu-util is available");
   return {
     available: true,
@@ -261,6 +291,7 @@ export async function mockCheckDfuUtil(): Promise<DfuCheckResult> {
 }
 
 export async function mockFlashFirmware(path: string): Promise<void> {
+  await mockReleaseDevice();
   emit("warn", "Mock: firmware flashing started");
   emitDfu("status", `Mock flashing ${path}`);
   for (const line of ["Opening DFU device", "Erasing", "Downloading", "Resetting device"]) {

@@ -64,6 +64,7 @@ pub struct DeviceDescriptor {
     pub manufacturer: Option<String>,
     pub product: Option<String>,
     pub serial: Option<String>,
+    pub is_dfu: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -99,6 +100,8 @@ pub enum XvfError {
     ValueRange { kind: &'static str, value: f64 },
     #[error("invalid parameter kind: {0}")]
     InvalidKind(String),
+    #[error("device is in DFU mode; runtime parameter IO is unavailable")]
+    DfuMode,
 }
 
 // Small wrapper around rusb's global default Context so we can reuse it and
@@ -118,9 +121,7 @@ pub fn list_devices_with_vid(vid: u16) -> Result<Vec<DeviceDescriptor>, XvfError
         if descriptor.vendor_id() != vid {
             continue;
         }
-        if is_dfu_bootloader_device(&device, &descriptor) {
-            continue;
-        }
+        let is_dfu = is_dfu_bootloader_device(&device, &descriptor);
         let (manufacturer, product, serial) = read_strings(&device, &descriptor);
         out.push(DeviceDescriptor {
             vid: descriptor.vendor_id(),
@@ -130,9 +131,10 @@ pub fn list_devices_with_vid(vid: u16) -> Result<Vec<DeviceDescriptor>, XvfError
             manufacturer,
             product,
             serial,
+            is_dfu,
         });
     }
-    out.sort_by_key(|d| d.pid);
+    out.sort_by_key(|d| (d.bus, d.address, d.pid));
     Ok(out)
 }
 
@@ -180,9 +182,6 @@ impl XvfDevice {
             if d.vendor_id() != vid {
                 continue;
             }
-            if is_dfu_bootloader_device(&device, &d) {
-                continue;
-            }
             if let Some(pid) = pid {
                 if d.product_id() != pid {
                     continue;
@@ -193,6 +192,7 @@ impl XvfDevice {
                     continue;
                 }
             }
+            let is_dfu = is_dfu_bootloader_device(&device, &d);
             let (manufacturer, product, serial) = read_strings(&device, &d);
             let handle = device.open()?;
             let descriptor = DeviceDescriptor {
@@ -203,13 +203,15 @@ impl XvfDevice {
                 manufacturer,
                 product,
                 serial,
+                is_dfu,
             };
             log::info!(
-                "[xvf] opened device vid=0x{:04x} pid=0x{:04x} bus={} addr={}",
+                "[xvf] opened device vid=0x{:04x} pid=0x{:04x} bus={} addr={} dfu={}",
                 descriptor.vid,
                 descriptor.pid,
                 descriptor.bus,
-                descriptor.address
+                descriptor.address,
+                descriptor.is_dfu
             );
             return Ok(XvfDevice { handle, descriptor });
         }
@@ -224,6 +226,17 @@ impl XvfDevice {
 
     pub fn descriptor(&self) -> &DeviceDescriptor {
         &self.descriptor
+    }
+
+    pub fn is_dfu(&self) -> bool {
+        self.descriptor.is_dfu
+    }
+
+    fn ensure_runtime(&self) -> Result<(), XvfError> {
+        if self.is_dfu() {
+            return Err(XvfError::DfuMode);
+        }
+        Ok(())
     }
 
     // ----- Raw control transfers -----
@@ -268,6 +281,7 @@ impl XvfDevice {
     // ----- Parameter read / write (mirrors xvf_host.py) -----
 
     pub fn write_parameter(&self, param: &Parameter, values: &[f64]) -> Result<(), XvfError> {
+        self.ensure_runtime()?;
         if !param.is_writable() {
             return Err(XvfError::ReadOnly(param.name.to_string()));
         }
@@ -300,6 +314,7 @@ impl XvfDevice {
         param: &Parameter,
         bytes: &[u8],
     ) -> Result<(), XvfError> {
+        self.ensure_runtime()?;
         if !param.is_writable() {
             return Err(XvfError::ReadOnly(param.name.to_string()));
         }
@@ -309,6 +324,7 @@ impl XvfDevice {
     }
 
     pub fn read_parameter(&self, param: &Parameter) -> Result<Vec<ReadValue>, XvfError> {
+        self.ensure_runtime()?;
         if !param.is_readable() {
             return Err(XvfError::WriteOnly(param.name.to_string()));
         }

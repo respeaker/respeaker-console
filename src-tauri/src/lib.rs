@@ -34,6 +34,7 @@ pub fn run() {
             xvf::commands::xvf_list_devices,
             xvf::commands::xvf_connect,
             xvf::commands::xvf_disconnect,
+            xvf::commands::xvf_release_device,
             xvf::commands::xvf_current_device,
             xvf::commands::xvf_read,
             xvf::commands::xvf_write,

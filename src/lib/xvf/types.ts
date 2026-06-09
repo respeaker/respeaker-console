@@ -26,6 +26,7 @@ export interface DeviceInfo {
   serial: string | null;
   vidHex: string;
   pidHex: string;
+  isDfu: boolean;
 }
 
 export type LogLevel = "info" | "warn" | "error" | "debug";

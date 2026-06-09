@@ -61,6 +61,7 @@ export function DevicePanel({ xvf }: Props) {
     refreshDevices,
     connect,
     disconnect,
+    releaseDevice,
     reboot,
     checkDfuUtil,
     flashFirmware,
@@ -117,8 +118,18 @@ export function DevicePanel({ xvf }: Props) {
   };
 
   const handleOpenFirmwareDialog = () => {
-    setFirmwareDialogOpen(true);
-    setFirmwareStep(1);
+    void (async () => {
+      await releaseDevice();
+      setFirmwareDialogOpen(true);
+      setFirmwareStep(1);
+    })();
+  };
+
+  const handleFirmwareDialogOpenChange = (open: boolean) => {
+    setFirmwareDialogOpen(open);
+    if (!open) {
+      void releaseDevice();
+    }
   };
 
   const handleCheckDfu = async () => {
@@ -365,7 +376,7 @@ export function DevicePanel({ xvf }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={firmwareDialogOpen} onOpenChange={setFirmwareDialogOpen}>
+      <Dialog open={firmwareDialogOpen} onOpenChange={handleFirmwareDialogOpenChange}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-medium">
@@ -510,7 +521,7 @@ export function DevicePanel({ xvf }: Props) {
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
-            <Button variant="outline" onClick={() => setFirmwareDialogOpen(false)}>
+            <Button variant="outline" onClick={() => handleFirmwareDialogOpenChange(false)}>
               {t("xvf.confirm.cancel")}
             </Button>
             <div className="flex gap-2">
