@@ -11,7 +11,7 @@ use rusb::{
     request_type, Context, Device, DeviceHandle, Direction, Recipient, RequestType, UsbContext,
 };
 
-use super::parameters::{response_length, Parameter};
+use super::parameters::{self, response_length, Parameter};
 
 static USB_CONTEXT: Lazy<Context> =
     Lazy::new(|| Context::new().expect("failed to create libusb context"));
@@ -192,7 +192,7 @@ impl XvfDevice {
                     continue;
                 }
             }
-            let is_dfu = is_dfu_bootloader_device(&device, &d);
+            let descriptor_has_dfu = is_dfu_bootloader_device(&device, &d);
             let (manufacturer, product, serial) = read_strings(&device, &d);
             let handle = device.open()?;
             let descriptor = DeviceDescriptor {
@@ -203,17 +203,22 @@ impl XvfDevice {
                 manufacturer,
                 product,
                 serial,
-                is_dfu,
+                is_dfu: descriptor_has_dfu,
             };
+            let mut xvf = XvfDevice { handle, descriptor };
+            let runtime_available = xvf.runtime_probe_available();
+            xvf.descriptor.is_dfu = !runtime_available;
             log::info!(
-                "[xvf] opened device vid=0x{:04x} pid=0x{:04x} bus={} addr={} dfu={}",
-                descriptor.vid,
-                descriptor.pid,
-                descriptor.bus,
-                descriptor.address,
-                descriptor.is_dfu
+                "[xvf] opened device vid=0x{:04x} pid=0x{:04x} bus={} addr={} descriptor_dfu={} runtime_available={} dfu={}",
+                xvf.descriptor.vid,
+                xvf.descriptor.pid,
+                xvf.descriptor.bus,
+                xvf.descriptor.address,
+                descriptor_has_dfu,
+                runtime_available,
+                xvf.descriptor.is_dfu
             );
-            return Ok(XvfDevice { handle, descriptor });
+            return Ok(xvf);
         }
         Err(XvfError::NotFound {
             vid,
@@ -237,6 +242,14 @@ impl XvfDevice {
             return Err(XvfError::DfuMode);
         }
         Ok(())
+    }
+
+    fn runtime_probe_available(&self) -> bool {
+        ["VERSION", "BLD_MSG"].iter().any(|name| {
+            parameters::find(name)
+                .and_then(|param| self.read_parameter_unchecked(param).ok())
+                .is_some()
+        })
     }
 
     // ----- Raw control transfers -----
@@ -325,6 +338,10 @@ impl XvfDevice {
 
     pub fn read_parameter(&self, param: &Parameter) -> Result<Vec<ReadValue>, XvfError> {
         self.ensure_runtime()?;
+        self.read_parameter_unchecked(param)
+    }
+
+    fn read_parameter_unchecked(&self, param: &Parameter) -> Result<Vec<ReadValue>, XvfError> {
         if !param.is_readable() {
             return Err(XvfError::WriteOnly(param.name.to_string()));
         }

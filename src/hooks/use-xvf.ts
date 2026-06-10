@@ -406,9 +406,6 @@ export function useXvf(): UseXvfResult {
 
   const read = useCallback(
     async (name: string): Promise<ReadResult | null> => {
-      if (current?.isDfu) {
-        return null;
-      }
       try {
         const values = await xvf.readParameter(name);
         return { values };
@@ -417,14 +414,11 @@ export function useXvf(): UseXvfResult {
         return null;
       }
     },
-    [current?.isDfu, pushLog]
+    [pushLog]
   );
 
   const write = useCallback(
     async (name: string, values: XvfValue[]): Promise<boolean> => {
-      if (current?.isDfu) {
-        return false;
-      }
       try {
         await xvf.writeParameter(name, values);
         pushLog("info", `${name} = ${formatValues(values)}`);
@@ -434,25 +428,29 @@ export function useXvf(): UseXvfResult {
         return false;
       }
     },
-    [current?.isDfu, pushLog]
+    [pushLog]
   );
 
   const readMany = useCallback(
     async (names: string[]) => {
       if (names.length === 0) return {};
-      if (current?.isDfu) return {};
       try {
         const results: ReadManyResult[] = await xvf.readMany(names);
         const out: Record<string, ReadResult> = {};
         for (const r of results) {
-          if (r.ok) out[r.name] = { values: r.values };
+          if (r.ok) {
+            out[r.name] = { values: r.values };
+          } else if (r.error) {
+            pushLog("warn", `Read ${r.name} failed: ${r.error}`);
+          }
         }
         return out;
-      } catch {
+      } catch (e) {
+        pushLog("error", `Bulk read failed: ${errorMessage(e)}`);
         return {};
       }
     },
-    [current?.isDfu]
+    [pushLog]
   );
 
   return {
