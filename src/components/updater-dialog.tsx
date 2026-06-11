@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useUpdater } from "@/hooks/use-updater";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ interface UpdaterDialogProps {
 export function UpdaterDialog({ manualCheck = false, onCheckComplete }: UpdaterDialogProps) {
   const { update, checking, downloading, progress, checkUpdate, installUpdate } = useUpdater();
   const [open, setOpen] = useState(false);
+  const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -31,20 +32,38 @@ export function UpdaterDialog({ manualCheck = false, onCheckComplete }: UpdaterD
 
   useEffect(() => {
     if (update) {
+      if (!manualCheck && autoPromptDismissed) {
+        onCheckComplete?.();
+        return;
+      }
+
       setOpen(true);
       onCheckComplete?.();
     } else if (manualCheck && !checking) {
       onCheckComplete?.();
     }
-  }, [update, checking, manualCheck, onCheckComplete]);
+  }, [update, checking, manualCheck, autoPromptDismissed, onCheckComplete]);
 
   const handleInstall = () => {
     void installUpdate();
   };
 
   const handleCancel = () => {
+    if (!manualCheck) {
+      setAutoPromptDismissed(true);
+    }
     setOpen(false);
   };
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && !manualCheck && !downloading) {
+        setAutoPromptDismissed(true);
+      }
+      setOpen(nextOpen);
+    },
+    [downloading, manualCheck]
+  );
 
   const getProgressPercentage = () => {
     if (!progress || progress.event === "Started") return 0;
@@ -55,7 +74,7 @@ export function UpdaterDialog({ manualCheck = false, onCheckComplete }: UpdaterD
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
