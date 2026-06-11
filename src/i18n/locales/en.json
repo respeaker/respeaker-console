@@ -115,7 +115,69 @@
         "source": "Source",
         "sourceIndex": "Source index",
         "autoSelectBeam": "Auto-select beam",
-        "userChannel": "User channel"
+        "userChannel": "User channel",
+        "affectedParametersLabel": "Effective parameters",
+        "effects": {
+          "full": "PP affected",
+          "partial": "Partly affected",
+          "none": "Bypasses PP",
+          "depends": "Depends on source"
+        },
+        "effectDescriptions": {
+          "full": "This route carries post-processed audio, so AGC, suppression, limiter, and related PP settings should be audible.",
+          "partial": "This route is after part of the DSP chain. Some PP settings may be audible, but raw input changes may not be.",
+          "none": "This route taps raw, reference, delayed, or silence streams before post-processing. PP setting changes may be written but not audible here.",
+          "depends": "This route follows user-selected channels. Whether PP settings are audible depends on which internal channels are selected."
+        },
+        "affectedParameters": {
+          "0": "None; silence output only.",
+          "1": "No PP parameters. Route, packing, and upsample settings only.",
+          "2": "No PP parameters. Input packing/unpacking handling only.",
+          "3": "AUDIO_MGR_MIC_GAIN, AUDIO_MGR_SYS_DELAY.",
+          "4": "AUDIO_MGR_REF_GAIN, AUDIO_MGR_FAR_END_DSP_ENABLE, I2S_DAC_DSP_ENABLE.",
+          "5": "AUDIO_MGR_REF_GAIN, AUDIO_MGR_SYS_DELAY, AUDIO_MGR_FAR_END_DSP_ENABLE, I2S_DAC_DSP_ENABLE.",
+          "6": "SHF_BYPASS and PP_* controls: PP_AGCONOFF, PP_AGCMAXGAIN, PP_AGCDESIREDLEVEL, PP_MGSCALE, PP_MIN_NN, PP_MIN_NS, PP_NLATTENONOFF, PP_ECHOONOFF, PP_LIMITONOFF, PP_DTSENSITIVE.",
+          "7": "AEC/ASR path controls such as SHF_BYPASS, AEC_ASROUTONOFF, AEC_ASROUTGAIN, plus some echo/AEC related settings.",
+          "8": "AUDIO_MGR_SELECTED_CHANNELS selects the internal channels; effective parameters depend on the selected channels.",
+          "9": "Post-SHF/AEC path controls such as SHF_BYPASS and AEC fixed-beam / DSP settings; PP_* communication-output controls may not all be audible.",
+          "10": "Far-end native-rate path: AUDIO_MGR_REF_GAIN, AUDIO_MGR_FAR_END_DSP_ENABLE, I2S_DAC_DSP_ENABLE.",
+          "11": "AUDIO_MGR_MIC_GAIN.",
+          "12": "AUDIO_MGR_REF_GAIN, AUDIO_MGR_SYS_DELAY, AUDIO_MGR_FAR_END_DSP_ENABLE, I2S_DAC_DSP_ENABLE."
+        },
+        "sourceLabels": {
+          "1": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "2": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "3": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "6": {
+            "0": "Beam 1",
+            "1": "Beam 2",
+            "2": "Free-running beam",
+            "3": "Auto-select beam"
+          },
+          "7": {
+            "0": "AEC residual / ASR 0",
+            "1": "AEC residual / ASR 1",
+            "2": "AEC residual / ASR 2",
+            "3": "AEC residual / ASR 3"
+          },
+          "8": { "0": "User channel L", "1": "User channel R" },
+          "9": {
+            "0": "Post-SHF DSP 0",
+            "1": "Post-SHF DSP 1",
+            "2": "Post-SHF DSP 2",
+            "3": "Post-SHF DSP 3"
+          },
+          "10": {
+            "0": "Far-end native 0",
+            "1": "Far-end native 1",
+            "2": "Far-end native 2",
+            "3": "Far-end native 3",
+            "4": "Far-end native 4",
+            "5": "Far-end native 5"
+          },
+          "11": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "12": { "0": "Far-end reference" }
+        }
       },
       "outputCategories": {
         "0": "Silence",
@@ -131,6 +193,20 @@
         "10": "Far end at native rate",
         "11": "Amplified microphone data before system delay",
         "12": "Amplified far end reference with system delay"
+      },
+      "parameterHelp": {
+        "parameter": "Parameter",
+        "kind": "Kind",
+        "length": "Length",
+        "access": "Access",
+        "command": "resid/cmdid",
+        "range": "Range",
+        "step": "Step",
+        "currentRoute": "Current route",
+        "selectedCategory": "Category",
+        "ppEffect": "PP effect",
+        "affectedParameters": "Effective parameters",
+        "aria": "Parameter help for {{name}}"
       },
       "groups": {
         "noiseSuppression": "Noise suppression",

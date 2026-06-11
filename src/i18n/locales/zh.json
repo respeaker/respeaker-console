@@ -115,7 +115,69 @@
         "source": "来源",
         "sourceIndex": "来源索引",
         "autoSelectBeam": "自动选择波束",
-        "userChannel": "用户通道"
+        "userChannel": "用户通道",
+        "affectedParametersLabel": "有效参数",
+        "effects": {
+          "full": "受 PP 影响",
+          "partial": "部分受影响",
+          "none": "绕过 PP",
+          "depends": "取决于来源"
+        },
+        "effectDescriptions": {
+          "full": "该路由输出后处理音频，AGC、抑制、限幅和相关 PP 设置通常可以听到效果。",
+          "partial": "该路由位于部分 DSP 链路之后。部分 PP 设置可能有效，但原始输入相关变化可能不明显。",
+          "none": "该路由在后处理前取出原始、参考、延迟或静音流。PP 设置会写入，但在这里可能听不到变化。",
+          "depends": "该路由跟随用户选择的通道。PP 设置是否可听取决于所选内部通道。"
+        },
+        "affectedParameters": {
+          "0": "无；仅输出静音。",
+          "1": "PP 参数无效。仅路由、打包和升采样相关设置可能影响输出。",
+          "2": "PP 参数无效。主要受输入打包/解包相关设置影响。",
+          "3": "AUDIO_MGR_MIC_GAIN、AUDIO_MGR_SYS_DELAY。",
+          "4": "AUDIO_MGR_REF_GAIN、AUDIO_MGR_FAR_END_DSP_ENABLE、I2S_DAC_DSP_ENABLE。",
+          "5": "AUDIO_MGR_REF_GAIN、AUDIO_MGR_SYS_DELAY、AUDIO_MGR_FAR_END_DSP_ENABLE、I2S_DAC_DSP_ENABLE。",
+          "6": "SHF_BYPASS 以及 PP_* 控制：PP_AGCONOFF、PP_AGCMAXGAIN、PP_AGCDESIREDLEVEL、PP_MGSCALE、PP_MIN_NN、PP_MIN_NS、PP_NLATTENONOFF、PP_ECHOONOFF、PP_LIMITONOFF、PP_DTSENSITIVE。",
+          "7": "AEC/ASR 路径控制，例如 SHF_BYPASS、AEC_ASROUTONOFF、AEC_ASROUTGAIN，以及部分回声/AEC 相关设置。",
+          "8": "由 AUDIO_MGR_SELECTED_CHANNELS 选择内部通道；是否有效取决于选中的通道。",
+          "9": "Post-SHF/AEC 路径控制，例如 SHF_BYPASS 和 AEC 固定波束 / DSP 相关设置；PP_* 通信输出控制不一定全部可听。",
+          "10": "远端原生采样率路径：AUDIO_MGR_REF_GAIN、AUDIO_MGR_FAR_END_DSP_ENABLE、I2S_DAC_DSP_ENABLE。",
+          "11": "AUDIO_MGR_MIC_GAIN。",
+          "12": "AUDIO_MGR_REF_GAIN、AUDIO_MGR_SYS_DELAY、AUDIO_MGR_FAR_END_DSP_ENABLE、I2S_DAC_DSP_ENABLE。"
+        },
+        "sourceLabels": {
+          "1": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "2": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "3": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "6": {
+            "0": "波束 1",
+            "1": "波束 2",
+            "2": "自由运行波束",
+            "3": "自动选择波束"
+          },
+          "7": {
+            "0": "AEC 残差 / ASR 0",
+            "1": "AEC 残差 / ASR 1",
+            "2": "AEC 残差 / ASR 2",
+            "3": "AEC 残差 / ASR 3"
+          },
+          "8": { "0": "用户通道 L", "1": "用户通道 R" },
+          "9": {
+            "0": "Post-SHF DSP 0",
+            "1": "Post-SHF DSP 1",
+            "2": "Post-SHF DSP 2",
+            "3": "Post-SHF DSP 3"
+          },
+          "10": {
+            "0": "原生远端 0",
+            "1": "原生远端 1",
+            "2": "原生远端 2",
+            "3": "原生远端 3",
+            "4": "原生远端 4",
+            "5": "原生远端 5"
+          },
+          "11": { "0": "MIC 0", "1": "MIC 1", "2": "MIC 2", "3": "MIC 3" },
+          "12": { "0": "远端参考" }
+        }
       },
       "outputCategories": {
         "0": "静音",
@@ -131,6 +193,20 @@
         "10": "原生采样率远端数据",
         "11": "系统延迟前的放大后麦克风数据",
         "12": "带系统延迟的放大后远端参考数据"
+      },
+      "parameterHelp": {
+        "parameter": "参数",
+        "kind": "类型",
+        "length": "长度",
+        "access": "权限",
+        "command": "resid/cmdid",
+        "range": "范围",
+        "step": "步进",
+        "currentRoute": "当前路由",
+        "selectedCategory": "类别",
+        "ppEffect": "PP 效果",
+        "affectedParameters": "有效参数",
+        "aria": "{{name}} 的参数说明"
       },
       "groups": {
         "noiseSuppression": "噪声抑制",

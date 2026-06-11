@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Gauge, MicOff, SlidersHorizontal, Sparkles, Volume2, Waves } from "lucide-react";
+import {
+  CircleHelp,
+  Gauge,
+  MicOff,
+  SlidersHorizontal,
+  Sparkles,
+  Volume2,
+  Waves,
+} from "lucide-react";
 
 import type { UseXvfResult } from "@/hooks/use-xvf";
 import { Badge } from "@/components/ui/badge";
@@ -58,22 +67,104 @@ type OutputRouteCategory = {
   id: number;
   labelKey: string;
   sources: number[];
+  effect: OutputRouteEffect;
+  affectedKey: string;
 };
 
+type OutputRouteEffect = "full" | "partial" | "none" | "depends";
+
 const OUTPUT_ROUTE_CATEGORIES: OutputRouteCategory[] = [
-  { id: 0, labelKey: "xvf.audio.outputCategories.0", sources: [0] },
-  { id: 1, labelKey: "xvf.audio.outputCategories.1", sources: [0, 1, 2, 3] },
-  { id: 2, labelKey: "xvf.audio.outputCategories.2", sources: [0, 1, 2, 3] },
-  { id: 3, labelKey: "xvf.audio.outputCategories.3", sources: [0, 1, 2, 3] },
-  { id: 4, labelKey: "xvf.audio.outputCategories.4", sources: [0] },
-  { id: 5, labelKey: "xvf.audio.outputCategories.5", sources: [0] },
-  { id: 6, labelKey: "xvf.audio.outputCategories.6", sources: [0, 1, 2, 3] },
-  { id: 7, labelKey: "xvf.audio.outputCategories.7", sources: [0, 1, 2, 3] },
-  { id: 8, labelKey: "xvf.audio.outputCategories.8", sources: [0, 1] },
-  { id: 9, labelKey: "xvf.audio.outputCategories.9", sources: [0, 1, 2, 3] },
-  { id: 10, labelKey: "xvf.audio.outputCategories.10", sources: [0, 1, 2, 3, 4, 5] },
-  { id: 11, labelKey: "xvf.audio.outputCategories.11", sources: [0, 1, 2, 3] },
-  { id: 12, labelKey: "xvf.audio.outputCategories.12", sources: [0] },
+  {
+    id: 0,
+    labelKey: "xvf.audio.outputCategories.0",
+    sources: [0],
+    effect: "none",
+    affectedKey: "0",
+  },
+  {
+    id: 1,
+    labelKey: "xvf.audio.outputCategories.1",
+    sources: [0, 1, 2, 3],
+    effect: "none",
+    affectedKey: "1",
+  },
+  {
+    id: 2,
+    labelKey: "xvf.audio.outputCategories.2",
+    sources: [0, 1, 2, 3],
+    effect: "none",
+    affectedKey: "2",
+  },
+  {
+    id: 3,
+    labelKey: "xvf.audio.outputCategories.3",
+    sources: [0, 1, 2, 3],
+    effect: "partial",
+    affectedKey: "3",
+  },
+  {
+    id: 4,
+    labelKey: "xvf.audio.outputCategories.4",
+    sources: [0],
+    effect: "partial",
+    affectedKey: "4",
+  },
+  {
+    id: 5,
+    labelKey: "xvf.audio.outputCategories.5",
+    sources: [0],
+    effect: "partial",
+    affectedKey: "5",
+  },
+  {
+    id: 6,
+    labelKey: "xvf.audio.outputCategories.6",
+    sources: [0, 1, 2, 3],
+    effect: "full",
+    affectedKey: "6",
+  },
+  {
+    id: 7,
+    labelKey: "xvf.audio.outputCategories.7",
+    sources: [0, 1, 2, 3],
+    effect: "partial",
+    affectedKey: "7",
+  },
+  {
+    id: 8,
+    labelKey: "xvf.audio.outputCategories.8",
+    sources: [0, 1],
+    effect: "depends",
+    affectedKey: "8",
+  },
+  {
+    id: 9,
+    labelKey: "xvf.audio.outputCategories.9",
+    sources: [0, 1, 2, 3],
+    effect: "partial",
+    affectedKey: "9",
+  },
+  {
+    id: 10,
+    labelKey: "xvf.audio.outputCategories.10",
+    sources: [0, 1, 2, 3, 4, 5],
+    effect: "partial",
+    affectedKey: "10",
+  },
+  {
+    id: 11,
+    labelKey: "xvf.audio.outputCategories.11",
+    sources: [0, 1, 2, 3],
+    effect: "partial",
+    affectedKey: "11",
+  },
+  {
+    id: 12,
+    labelKey: "xvf.audio.outputCategories.12",
+    sources: [0],
+    effect: "partial",
+    affectedKey: "12",
+  },
 ];
 
 const CONTROL_DEFS: AudioControlDef[] = [
@@ -276,6 +367,8 @@ export function AudioPanel({ xvf }: Props) {
                       key={def.name}
                       id={def.name}
                       label={t(def.labelKey)}
+                      param={param}
+                      t={t}
                       checked={(resultNumber(values[def.name]) ?? 0) > 0.5}
                       onChange={(checked) => void writeValue(def, param, checked ? 1 : 0)}
                       disabled={disabled}
@@ -285,6 +378,7 @@ export function AudioPanel({ xvf }: Props) {
                       key={def.name}
                       def={def}
                       label={t(def.labelKey)}
+                      param={param}
                       value={values[def.name] ?? [0, 0]}
                       disabled={disabled}
                       t={t}
@@ -295,6 +389,8 @@ export function AudioPanel({ xvf }: Props) {
                       key={def.name}
                       def={def}
                       label={t(def.labelKey)}
+                      param={param}
+                      t={t}
                       value={resultNumber(values[def.name]) ?? def.min}
                       disabled={disabled}
                       onChange={(value) =>
@@ -319,6 +415,8 @@ export function AudioPanel({ xvf }: Props) {
 function NumericControl({
   def,
   label,
+  param,
+  t,
   value,
   disabled,
   onChange,
@@ -326,6 +424,8 @@ function NumericControl({
 }: {
   def: NumericControlDef;
   label: string;
+  param: ParameterInfo;
+  t: TFunction;
   value: number;
   disabled: boolean;
   onChange: (value: number) => void;
@@ -337,8 +437,16 @@ function NumericControl({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={def.name} className="text-sm">
+        <Label htmlFor={def.name} className="flex items-center gap-1.5 text-sm">
           {label}
+          <ParameterHelp
+            param={param}
+            t={t}
+            lines={[
+              { label: t("xvf.audio.parameterHelp.range"), value: formatRange(def) },
+              { label: t("xvf.audio.parameterHelp.step"), value: String(def.step) },
+            ]}
+          />
         </Label>
         <Badge variant="outline" className="tabular-nums">
           {formatted}
@@ -376,12 +484,16 @@ function NumericControl({
 function ToggleControl({
   id,
   label,
+  param,
+  t,
   checked,
   onChange,
   disabled,
 }: {
   id: string;
   label: string;
+  param: ParameterInfo;
+  t: TFunction;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
@@ -391,6 +503,7 @@ function ToggleControl({
       <Label htmlFor={id} className="flex items-center gap-2">
         <MicOff className="text-muted-foreground h-4 w-4" aria-hidden />
         {label}
+        <ParameterHelp param={param} t={t} />
       </Label>
       <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
@@ -400,6 +513,7 @@ function ToggleControl({
 function RouteControl({
   def,
   label,
+  param,
   value,
   disabled,
   t,
@@ -407,9 +521,10 @@ function RouteControl({
 }: {
   def: RouteControlDef;
   label: string;
+  param: ParameterInfo;
   value: XvfValue[];
   disabled: boolean;
-  t: (key: string) => string;
+  t: TFunction;
   onCommit: (values: XvfValue[]) => void;
 }) {
   const category = numericAt(value, 0) ?? 0;
@@ -419,6 +534,8 @@ function RouteControl({
   const effectiveSource = effectiveCategory.sources.includes(source)
     ? source
     : (effectiveCategory.sources[0] ?? 0);
+  const effectLabel = routeEffectLabel(effectiveCategory.effect, t);
+  const affectedParameters = routeAffectedParameters(effectiveCategory, t);
 
   const commitCategory = (nextCategory: number) => {
     const nextCategoryDef =
@@ -434,13 +551,42 @@ function RouteControl({
   return (
     <div className="flex flex-col gap-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={`${def.name}-category`} className="text-sm">
+        <Label htmlFor={`${def.name}-category`} className="flex items-center gap-1.5 text-sm">
           {label}
+          <ParameterHelp
+            param={param}
+            t={t}
+            lines={[
+              {
+                label: t("xvf.audio.parameterHelp.currentRoute"),
+                value: `[${effectiveCategory.id}, ${effectiveSource}]`,
+              },
+              {
+                label: t("xvf.audio.parameterHelp.selectedCategory"),
+                value: `${effectiveCategory.id}: ${t(effectiveCategory.labelKey)}`,
+              },
+              { label: t("xvf.audio.parameterHelp.ppEffect"), value: effectLabel },
+              {
+                label: t("xvf.audio.parameterHelp.affectedParameters"),
+                value: affectedParameters,
+              },
+            ]}
+          />
         </Label>
-        <Badge variant="outline" className="tabular-nums">
-          [{effectiveCategory.id}, {effectiveSource}]
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={routeEffectBadgeVariant(effectiveCategory.effect)}>{effectLabel}</Badge>
+          <Badge variant="outline" className="tabular-nums">
+            [{effectiveCategory.id}, {effectiveSource}]
+          </Badge>
+        </div>
       </div>
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        {routeEffectDescription(effectiveCategory.effect, t)}
+      </p>
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        <span className="font-medium">{t("xvf.audio.outputRoute.affectedParametersLabel")}: </span>
+        {affectedParameters}
+      </p>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${def.name}-category`} className="text-muted-foreground text-xs">
@@ -457,7 +603,7 @@ function RouteControl({
             <SelectContent>
               {OUTPUT_ROUTE_CATEGORIES.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>
-                  {item.id}: {t(item.labelKey)}
+                  {item.id}: {t(item.labelKey)} - {routeEffectLabel(item.effect, t)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -499,10 +645,87 @@ function numericAt(values: XvfValue[], index: number): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function sourceLabel(category: number, source: number, t: (key: string) => string): string {
-  if (category === 6 && source === 3) return t("xvf.audio.outputRoute.autoSelectBeam");
-  if (category === 8) return t("xvf.audio.outputRoute.userChannel");
+function sourceLabel(category: number, source: number, t: TFunction): string {
+  const key = `xvf.audio.outputRoute.sourceLabels.${category}.${source}`;
+  const label = t(key);
+  if (label !== key) return label;
   return t("xvf.audio.outputRoute.sourceIndex");
+}
+
+function routeEffectLabel(effect: OutputRouteEffect, t: TFunction): string {
+  return t(`xvf.audio.outputRoute.effects.${effect}`);
+}
+
+function routeEffectDescription(effect: OutputRouteEffect, t: TFunction): string {
+  return t(`xvf.audio.outputRoute.effectDescriptions.${effect}`);
+}
+
+function routeAffectedParameters(category: OutputRouteCategory, t: TFunction): string {
+  return t(`xvf.audio.outputRoute.affectedParameters.${category.affectedKey}`);
+}
+
+function routeEffectBadgeVariant(
+  effect: OutputRouteEffect
+): "success" | "warning" | "outline" | "secondary" {
+  if (effect === "full") return "success";
+  if (effect === "partial" || effect === "depends") return "warning";
+  return "secondary";
+}
+
+function formatRange(def: NumericControlDef): string {
+  return `${formatNumber(def.min, def.digits)} - ${formatNumber(def.max, def.digits)}${def.unit ?? ""}`;
+}
+
+type HelpLine = {
+  label: string;
+  value: string;
+};
+
+function ParameterHelp({
+  param,
+  t,
+  lines = [],
+}: {
+  param: ParameterInfo;
+  t: TFunction;
+  lines?: HelpLine[];
+}) {
+  const metadata: HelpLine[] = [
+    { label: t("xvf.audio.parameterHelp.parameter"), value: param.name },
+    { label: t("xvf.audio.parameterHelp.kind"), value: param.kind },
+    { label: t("xvf.audio.parameterHelp.length"), value: String(param.length) },
+    { label: t("xvf.audio.parameterHelp.access"), value: param.access },
+    { label: t("xvf.audio.parameterHelp.command"), value: `${param.resid}/${param.cmdid}` },
+    ...lines,
+  ];
+  const title = [
+    param.name,
+    param.description,
+    ...metadata.map((line) => `${line.label}: ${line.value}`),
+  ].join("\n");
+
+  return (
+    <span
+      className="group relative inline-flex"
+      tabIndex={0}
+      title={title}
+      aria-label={t("xvf.audio.parameterHelp.aria", { name: param.name })}
+    >
+      <CircleHelp className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
+      <span className="bg-popover text-popover-foreground pointer-events-none absolute top-full left-0 z-50 mt-2 hidden w-72 rounded-md border p-3 text-xs leading-relaxed shadow-md group-hover:block group-focus:block">
+        <span className="font-mono font-medium">{param.name}</span>
+        <span className="text-muted-foreground mt-1 block">{param.description}</span>
+        <span className="mt-2 grid gap-1">
+          {metadata.map((line) => (
+            <span key={line.label} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+              <span className="text-muted-foreground">{line.label}</span>
+              <span className="font-mono break-words">{line.value}</span>
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
 }
 
 function normalizeValue(def: NumericControlDef, value: number): number {
