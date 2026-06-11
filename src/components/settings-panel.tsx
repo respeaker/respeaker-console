@@ -281,6 +281,8 @@ export function SettingsPanel() {
               </Button>
               {showNoUpdate && <Badge variant="success">{t("updater.upToDate")}</Badge>}
             </div>
+
+            <p className="text-muted-foreground text-xs">{t("about.copyright")}</p>
           </div>
         )}
       </div>

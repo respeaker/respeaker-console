@@ -5,14 +5,27 @@ import {
   CircleHelp,
   Gauge,
   MicOff,
+  RotateCcw,
   SlidersHorizontal,
   Sparkles,
   Volume2,
   Waves,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import type { UseXvfResult } from "@/hooks/use-xvf";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -291,6 +304,8 @@ export function AudioPanel({ xvf }: Props) {
   const { current, commands, readMany, write } = xvf;
   const [values, setValues] = useState<ControlState>({});
   const [ready, setReady] = useState(false);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [restoringDefaults, setRestoringDefaults] = useState(false);
 
   const availableControls = useMemo(() => {
     const writable = new Map(
@@ -327,7 +342,20 @@ export function AudioPanel({ xvf }: Props) {
     };
   }, [availableControls, current, readMany]);
 
-  const disabled = !current || !ready;
+  const disabled = !current || !ready || restoringDefaults;
+
+  const executeRestoreDefaults = async () => {
+    setRestoringDefaults(true);
+    try {
+      const ok = await write("CLEAR_CONFIGURATION", [0]);
+      if (ok) toast.success(t("xvf.config.restoreDefaultsOk"));
+      else toast.error(t("xvf.config.writeFail"));
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setRestoringDefaults(false);
+    }
+  };
 
   const writeValue = async (def: AudioControlDef, param: ParameterInfo, value: number) => {
     const normalized = def.kind === "numeric" ? normalizeValue(def, value) : value > 0.5 ? 1 : 0;
@@ -343,11 +371,21 @@ export function AudioPanel({ xvf }: Props) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <SlidersHorizontal className="text-primary h-5 w-5" aria-hidden />
           {t("xvf.audio.title")}
         </CardTitle>
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-destructive border-destructive/40 hover:bg-destructive/10"
+          onClick={() => setRestoreConfirmOpen(true)}
+          disabled={!current || restoringDefaults}
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+          {t("xvf.config.restoreDefaults")}
+        </Button>
       </CardHeader>
       <CardContent className="grid gap-4 xl:grid-cols-2">
         {GROUPS.map((group) => {
@@ -408,6 +446,28 @@ export function AudioPanel({ xvf }: Props) {
           );
         })}
       </CardContent>
+      <AlertDialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-medium">
+              {t("xvf.confirm.restoreDefaults.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground/80 leading-relaxed">
+              {t("xvf.confirm.restoreDefaults.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-normal">{t("xvf.confirm.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void executeRestoreDefaults()}
+              className="font-normal"
+            >
+              {t("xvf.confirm.restoreDefaults.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

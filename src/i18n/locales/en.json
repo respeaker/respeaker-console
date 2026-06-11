@@ -338,6 +338,7 @@
     "button": "About",
     "appName": "reSpeaker Console",
     "version": "Version",
+    "copyright": "@Copyright (c) Seeed Technology Co., Ltd",
     "close": "Close"
   },
   "theme": {
