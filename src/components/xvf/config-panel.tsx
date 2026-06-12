@@ -53,6 +53,13 @@ const CATEGORY_RESID: Partial<Record<ConfigCategory, number>> = {
   system: RESID.APP,
 };
 
+const SAFE_BULK_CONFIG_RESIDS = new Set<number>([
+  RESID.AEC,
+  RESID.AUDIO_MGR,
+  RESID.GPO_LED,
+  RESID.PP,
+]);
+
 const SKIP_ON_IMPORT = new Set(["SAVE_CONFIGURATION", "REBOOT", "CLEAR_CONFIGURATION"]);
 
 interface PendingWrite {
@@ -259,7 +266,7 @@ export function ConfigPanel({ xvf }: Props) {
   };
 
   const doExport = async () => {
-    const writableParams = commands.filter((param) => param.access === "rw");
+    const writableParams = commands.filter(isBulkConfigParameter);
     if (writableParams.length === 0) return;
 
     setBusy("export");
@@ -327,17 +334,28 @@ export function ConfigPanel({ xvf }: Props) {
         toast.error(t("xvf.config.importInvalid"));
         if (validation.errors.length > 0) {
           toast.error(
-            t("xvf.config.importFailedParameters", { names: summarizeNames(validation.errors) })
+            t("xvf.config.importInvalidParameters", { names: summarizeNames(validation.errors) })
+          );
+        }
+        if (validation.skipped.length > 0) {
+          toast.warning(
+            t("xvf.config.importSkippedParameters", { names: summarizeNames(validation.skipped) })
           );
         }
         setBusy(null);
         return;
       }
 
+      if (validation.skipped.length > 0) {
+        toast.warning(t("xvf.config.importSkipped", { count: validation.skipped.length }));
+        toast.warning(
+          t("xvf.config.importSkippedParameters", { names: summarizeNames(validation.skipped) })
+        );
+      }
+
       if (validation.errors.length > 0) {
-        toast.warning(t("xvf.config.importSkipped", { count: validation.errors.length }));
         toast.error(
-          t("xvf.config.importFailedParameters", { names: summarizeNames(validation.errors) })
+          t("xvf.config.importInvalidParameters", { names: summarizeNames(validation.errors) })
         );
       }
 
@@ -356,15 +374,28 @@ export function ConfigPanel({ xvf }: Props) {
       let written = 0;
       let failed = 0;
       const failedNames: string[] = [];
+      const writtenValues: Record<string, XvfValue[]> = {};
 
       for (const entry of pendingImportData) {
         const ok = await write(entry.param.name, entry.values);
-        if (ok) written += 1;
-        else {
+        if (ok) {
+          written += 1;
+          writtenValues[entry.param.name] = entry.values;
+        } else {
           failed += 1;
           failedNames.push(entry.param.name);
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (written > 0) {
+        setCurrentValues((prev) => ({ ...prev, ...writtenValues }));
+        setDraftValues((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            Object.entries(writtenValues).map(([name, values]) => [name, valuesToDraft(values)])
+          ),
+        }));
       }
 
       if (failedNames.length > 0) {
@@ -656,6 +687,14 @@ function parseDraft(param: ParameterInfo, draft: string): XvfValue[] {
   });
 }
 
+function isBulkConfigParameter(param: ParameterInfo): boolean {
+  return (
+    param.access === "rw" &&
+    SAFE_BULK_CONFIG_RESIDS.has(param.resid) &&
+    !SKIP_ON_IMPORT.has(param.name)
+  );
+}
+
 function isConfigPreset(
   value: ConfigPreset
 ): value is { version: string; parameters: Record<string, unknown> } {
@@ -670,21 +709,24 @@ function isConfigPreset(
 function validateImportEntries(
   parameters: Record<string, unknown>,
   commands: ParameterInfo[]
-): { entries: ImportEntry[]; errors: string[] } {
-  const writable = new Map(
-    commands
-      .filter((param) => param.access === "rw" && !SKIP_ON_IMPORT.has(param.name))
-      .map((param) => [param.name, param])
-  );
+): { entries: ImportEntry[]; skipped: string[]; errors: string[] } {
+  const byName = new Map(commands.map((param) => [param.name, param]));
   const entries: ImportEntry[] = [];
+  const skipped: string[] = [];
   const errors: string[] = [];
 
   for (const [name, rawValues] of Object.entries(parameters)) {
-    const param = writable.get(name);
+    const param = byName.get(name);
     if (!param) {
-      errors.push(name);
+      skipped.push(name);
       continue;
     }
+
+    if (!isBulkConfigParameter(param)) {
+      skipped.push(name);
+      continue;
+    }
+
     if (!Array.isArray(rawValues) || rawValues.length !== param.length) {
       errors.push(name);
       continue;
@@ -698,7 +740,7 @@ function validateImportEntries(
     entries.push({ param, values });
   }
 
-  return { entries, errors };
+  return { entries, skipped, errors };
 }
 
 function normalizeImportedValues(param: ParameterInfo, values: unknown[]): XvfValue[] | null {
